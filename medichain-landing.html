@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MediChain — Own Your Health Records</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<style>
+  :root {
+    --background: hsl(213, 45%, 67%);
+    --foreground: hsl(0, 0%, 100%);
+    --heading: hsl(205, 52%, 5%);
+    --primary: hsl(0, 0%, 100%);
+    --primary-fg: hsl(0, 0%, 0%);
+    --radius: 9999px;
+    --burgundy: #3D1824;
+    --cream: #F5F0E8;
+    --gold: #E8A020;
+    --plum: #2D1020;
+    --font-heading: 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: #0a0a0a;
+    color: #fff;
+    overflow-x: hidden;
+  }
+
+  /* ── LIQUID GLASS ── */
+  .liquid-glass {
+    background: rgba(255,255,255,0.01);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.1);
+    position: relative;
+    overflow: hidden;
+  }
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%,
+      rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+      rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ── HERO ── */
+  #hero {
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  #hero-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+
+  .hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.38);
+    z-index: 1;
+  }
+
+  /* ── NAVBAR ── */
+  nav {
+    position: fixed;
+    top: 30px;
+    left: 0;
+    width: 100%;
+    z-index: 50;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+
+  .nav-logo-icon {
+    width: 32px;
+    height: 32px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  .nav-logo-text {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.02em;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: rgba(255,255,255,0.75);
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: #fff; }
+
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 9999px;
+    padding: 10px 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+    text-decoration: none;
+  }
+
+  .nav-btn:hover { background: #222; transform: translateY(-1px); }
+
+  /* ── HERO CONTENT ── */
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 96px 24px 200px;
+    gap: 28px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 9999px;
+    background: rgba(0,0,0,0.1);
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.9);
+    opacity: 0;
+    animation: fadeSlideUp 0.5s ease forwards 0.2s;
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+  }
+
+  /* ── BLUR TEXT ── */
+  .blur-text {
+    font-family: var(--font-heading);
+    font-size: clamp(3.2rem, 7vw, 5.5rem);
+    line-height: 0.88;
+    letter-spacing: -0.04em;
+    color: #fff;
+    font-weight: 300;
+    font-style: italic;
+    max-width: 820px;
+  }
+
+  .blur-word {
+    display: inline-block;
+    margin-right: 0.22em;
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(50px);
+    transition: opacity 0.35s ease, filter 0.35s ease, transform 0.35s ease;
+  }
+
+  .blur-word.visible {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0);
+  }
+
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 9999px;
+    padding: 14px 28px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    cursor: pointer;
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(20px);
+    animation: blurFadeIn 0.6s ease forwards 0.8s;
+    transition: background 0.2s, transform 0.15s;
+    text-decoration: none;
+  }
+
+  .hero-cta:hover { background: #111; transform: translateY(-2px); filter: blur(0); }
+
+  .hero-cta svg, .nav-btn svg { width: 14px; height: 14px; }
+
+  @keyframes fadeSlideUp {
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes blurFadeIn {
+    to { opacity: 1; filter: blur(0); transform: translateY(0); }
+  }
+
+  /* ── SCROLL INDICATOR ── */
+  .scroll-hint {
+    position: absolute;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.5;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.8), rgba(255,255,255,0));
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+  }
+
+  /* ── ABOUT SECTION ── */
+  #about {
+    background: var(--cream);
+    color: var(--heading);
+    padding: 120px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .about-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--burgundy);
+    margin-bottom: 20px;
+  }
+
+  .about-label-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--burgundy);
+  }
+
+  .about-heading {
+    font-family: var(--font-heading);
+    font-size: clamp(2.4rem, 4vw, 3.6rem);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-weight: 300;
+    color: var(--plum);
+    margin-bottom: 32px;
+  }
+
+  .about-stat {
+    font-family: var(--font-heading);
+    font-size: 4rem;
+    font-weight: 300;
+    color: var(--burgundy);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .about-stat-label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--burgundy);
+    margin-bottom: 28px;
+    opacity: 0.7;
+  }
+
+  .about-body {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 36px;
+    max-width: 420px;
+  }
+
+  .dark-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--plum);
+    color: #fff;
+    border: none;
+    border-radius: 9999px;
+    padding: 13px 26px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    text-decoration: none;
+  }
+
+  .dark-btn:hover { background: var(--burgundy); transform: translateY(-1px); }
+  .dark-btn svg { width: 14px; height: 14px; }
+
+  .about-image-placeholder {
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #d4a0a8 0%, #b87080 50%, #8b4555 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .about-image-inner {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.6);
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+  }
+
+  /* ── HOW IT WORKS ── */
+  #how {
+    background: #fff;
+    padding: 120px 40px;
+  }
+
+  .how-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--burgundy);
+    margin-bottom: 16px;
+  }
+
+  .section-heading {
+    font-family: var(--font-heading);
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 300;
+    color: var(--plum);
+    text-align: center;
+    margin-bottom: 64px;
+  }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--cream);
+    border-radius: 20px;
+    padding: 40px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transition: transform 0.2s;
+  }
+
+  .card:hover { transform: translateY(-4px); }
+
+  .card-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--burgundy);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+  }
+
+  .card-step {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--burgundy);
+    opacity: 0.6;
+  }
+
+  .card-title {
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 400;
+    color: var(--plum);
+    line-height: 1.2;
+  }
+
+  .card-body {
+    font-size: 0.88rem;
+    line-height: 1.65;
+    color: #555;
+  }
+
+  /* ── FEATURES ── */
+  #features {
+    background: var(--burgundy);
+    padding: 100px 40px;
+  }
+
+  .features-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  #features .section-label { color: rgba(255,255,255,0.5); }
+  #features .section-heading { color: #fff; }
+
+  .features-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-top: 0;
+  }
+
+  .feature-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 32px 16px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: background 0.2s, transform 0.2s;
+    cursor: pointer;
+  }
+
+  .feature-item:hover {
+    background: rgba(255,255,255,0.1);
+    transform: translateY(-3px);
+  }
+
+  .feature-icon {
+    width: 52px;
+    height: 52px;
+    background: rgba(232,160,32,0.15);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gold);
+  }
+
+  .feature-label {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: rgba(255,255,255,0.7);
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  /* ── STATS ── */
+  #stats {
+    background: #0a0205;
+    padding: 100px 40px;
+  }
+
+  .stats-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  .stat-block {
+    background: #0a0205;
+    padding: 60px 40px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stat-num {
+    font-family: var(--font-heading);
+    font-size: 4rem;
+    font-weight: 300;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .stat-label {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ── TESTIMONIALS ── */
+  #testimonials {
+    background: var(--cream);
+    padding: 120px 40px;
+    color: var(--heading);
+  }
+
+  #testimonials .section-label { color: var(--burgundy); }
+  #testimonials .section-heading { color: var(--plum); }
+
+  .testimonials-grid {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px;
+  }
+
+  .testimonial-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: transform 0.2s;
+  }
+
+  .testimonial-card:hover { transform: translateY(-3px); }
+
+  .testimonial-quote {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-style: italic;
+    line-height: 1.6;
+    color: #333;
+    font-weight: 300;
+  }
+
+  .testimonial-quote::before { content: '"'; color: var(--burgundy); font-size: 1.5em; line-height: 0; vertical-align: -0.3em; margin-right: 2px; }
+
+  .testimonial-author {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .author-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c4788a, #8b4555);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    color: #fff;
+  }
+
+  .author-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--plum);
+  }
+
+  .author-role {
+    font-size: 0.75rem;
+    color: #888;
+  }
+
+  /* ── CTA FOOTER BANNER ── */
+  #cta-banner {
+    background: var(--plum);
+    padding: 120px 40px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  #cta-banner h2 {
+    font-family: var(--font-heading);
+    font-size: clamp(2.4rem, 5vw, 4rem);
+    font-weight: 300;
+    font-style: italic;
+    color: #fff;
+    max-width: 700px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  #cta-banner p {
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.6);
+    max-width: 460px;
+    line-height: 1.65;
+  }
+
+  .cta-btns {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .gold-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold);
+    color: #fff;
+    border: none;
+    border-radius: 9999px;
+    padding: 14px 28px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    text-decoration: none;
+  }
+
+  .gold-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .gold-btn svg { width: 14px; height: 14px; }
+
+  .outline-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    border-radius: 9999px;
+    padding: 13px 26px;
+    font-size: 0.85rem;
+    font-weight: 400;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    text-decoration: none;
+  }
+
+  .outline-btn:hover { border-color: rgba(255,255,255,0.7); transform: translateY(-1px); }
+  .outline-btn svg { width: 14px; height: 14px; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: #060304;
+    padding: 60px 40px 32px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .footer-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 48px;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .footer-brand {}
+  .footer-brand-name {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    font-weight: 400;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .footer-tagline {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.35);
+    max-width: 220px;
+    line-height: 1.5;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 28px;
+    list-style: none;
+    flex-wrap: wrap;
+  }
+
+  .footer-links a {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.4);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: rgba(255,255,255,0.8); }
+
+  .footer-socials {
+    display: flex;
+    gap: 12px;
+  }
+
+  .social-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 9999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .social-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+
+  .footer-bottom {
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .footer-copy {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.25);
+  }
+
+  .footer-chain-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 9999px;
+    padding: 5px 12px;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+  }
+
+  .chain-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #7c3aed;
+  }
+
+  /* ── SECTION WRAPPER ── */
+  .section-wrapper {
+    width: 100%;
+  }
+
+  /* Scroll-reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    .nav-links { display: none; }
+    #about { grid-template-columns: 1fr; padding: 80px 24px; gap: 40px; }
+    #how { padding: 80px 24px; }
+    .cards-grid { grid-template-columns: 1fr; }
+    .features-row { grid-template-columns: repeat(3, 1fr); }
+    .stats-inner { grid-template-columns: 1fr; }
+    .testimonials-grid { grid-template-columns: 1fr; }
+    #cta-banner { padding: 80px 24px; }
+    footer { padding: 48px 24px 24px; }
+    .footer-top { flex-direction: column; gap: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ NAVBAR ══ -->
+<nav>
+  <a href="#" class="nav-logo liquid-glass" style="border-radius:10px;padding:7px 14px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/>
+    </svg>
+    <span class="nav-logo-text">MediChain</span>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="#about">About</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#testimonials">Stories</a></li>
+    <li><a href="#">Docs</a></li>
+  </ul>
+
+  <a href="#" class="nav-btn">
+    Connect Wallet
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+  </a>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section id="hero">
+  <video id="hero-video" autoplay loop muted playsinline></video>
+  <div class="hero-overlay"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge liquid-glass">
+      <span class="badge-dot"></span>
+      10K+ patients securing records on-chain
+    </div>
+
+    <h1 class="blur-text" id="blur-heading">
+      <!-- words injected by JS -->
+    </h1>
+
+    <a href="#" class="hero-cta">
+      Connect Wallet
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+    </a>
+  </div>
+
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- ══ ABOUT ══ -->
+<div class="section-wrapper" style="background:var(--cream)">
+  <section id="about" class="reveal">
+    <div>
+      <div class="about-label"><span class="about-label-dot"></span> About MediChain</div>
+      <h2 class="about-heading">A New Standard<br/>of Health Data<br/>Ownership</h2>
+      <div class="about-stat">100%</div>
+      <div class="about-stat-label">Patient Controlled</div>
+      <p class="about-body">Our team of blockchain engineers and healthcare professionals built MediChain with one mission: eliminate fragmented, inaccessible, and fraud-prone medical records. Every record is minted as an NFT — owned by you, verified by the blockchain.</p>
+      <a href="#" class="dark-btn">
+        Learn More
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+      </a>
+    </div>
+    <div class="about-image-placeholder">
+      <div class="about-image-inner">
+        Doctor reviewing patient records<br/>on a secure blockchain terminal
+      </div>
+      <!-- decorative circuit pattern -->
+      <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:0.15" viewBox="0 0 400 300">
+        <circle cx="200" cy="150" r="80" fill="none" stroke="#fff" stroke-width="0.5" stroke-dasharray="4 6"/>
+        <circle cx="200" cy="150" r="120" fill="none" stroke="#fff" stroke-width="0.5" stroke-dasharray="2 8"/>
+        <line x1="120" y1="150" x2="40" y2="150" stroke="#fff" stroke-width="0.5"/>
+        <line x1="280" y1="150" x2="360" y2="150" stroke="#fff" stroke-width="0.5"/>
+        <line x1="200" y1="70" x2="200" y2="20" stroke="#fff" stroke-width="0.5"/>
+        <line x1="200" y1="230" x2="200" y2="280" stroke="#fff" stroke-width="0.5"/>
+        <circle cx="200" cy="150" r="12" fill="rgba(255,255,255,0.3)" stroke="#fff" stroke-width="0.8"/>
+        <text x="200" y="155" text-anchor="middle" fill="#fff" font-size="10" font-family="sans-serif">NFT</text>
+        <circle cx="40" cy="150" r="6" fill="none" stroke="#fff" stroke-width="0.8"/>
+        <circle cx="360" cy="150" r="6" fill="none" stroke="#fff" stroke-width="0.8"/>
+        <circle cx="200" cy="20" r="6" fill="none" stroke="#fff" stroke-width="0.8"/>
+        <circle cx="200" cy="280" r="6" fill="none" stroke="#fff" stroke-width="0.8"/>
+      </svg>
+    </div>
+  </section>
+</div>
+
+<!-- ══ HOW IT WORKS ══ -->
+<div class="section-wrapper" style="background:#fff">
+  <section id="how" class="reveal">
+    <div class="how-inner">
+      <div class="section-label">
+        <span class="about-label-dot" style="background:var(--burgundy)"></span>
+        Our Process
+      </div>
+      <h2 class="section-heading">How MediChain Works</h2>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div class="card-step">Step 01</div>
+          <div class="card-title">Connect Your Wallet</div>
+          <p class="card-body">Sign in with MetaMask. No passwords, no forms. Your wallet is your identity — cryptographically secure and entirely self-sovereign.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </div>
+          <div class="card-step">Step 02</div>
+          <div class="card-title">Mint Your Records</div>
+          <p class="card-body">Each medical document becomes an ERC-721 NFT on Polygon, stored encrypted on IPFS. The hash lives on-chain. Only you hold the decryption key.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/><line x1="18" y1="14" x2="18" y2="20"/><line x1="15" y1="17" x2="21" y2="17"/></svg>
+          </div>
+          <div class="card-step">Step 03</div>
+          <div class="card-title">Grant Doctor Access</div>
+          <p class="card-body">Approve access via smart contract with expiry dates. Revoke anytime with a single transaction. No middlemen, no data brokers — ever.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ FEATURES ══ -->
+<div class="section-wrapper" style="background:var(--burgundy)">
+  <section id="features" class="reveal">
+    <div class="features-inner">
+      <div class="section-label" style="color:rgba(255,255,255,0.4)">
+        <span class="about-label-dot" style="background:rgba(255,255,255,0.4)"></span>
+        Our Services
+      </div>
+      <h2 class="section-heading" style="color:#fff">Everyday Essentials<br/>for Secure Healthcare</h2>
+      <div class="features-row">
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div class="feature-label">Secure Records</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+          </div>
+          <div class="feature-label">Prescription Tracking</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </div>
+          <div class="feature-label">Hospital Integration</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </div>
+          <div class="feature-label">Insurance Claims</div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          </div>
+          <div class="feature-label">Doctor Access Control</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ STATS ══ -->
+<div class="section-wrapper" style="background:#0a0205">
+  <section id="stats" style="padding:100px 40px">
+    <div class="stats-inner reveal">
+      <div class="stat-block">
+        <div class="stat-num">10K+</div>
+        <div class="stat-label">Patients Onboarded</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-num">Zero</div>
+        <div class="stat-label">Data Breaches</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-num">3</div>
+        <div class="stat-label">Chains Supported</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ TESTIMONIALS ══ -->
+<div class="section-wrapper" style="background:var(--cream)">
+  <section id="testimonials" style="padding:120px 40px" class="reveal">
+    <div class="section-label" style="color:var(--burgundy)">
+      <span class="about-label-dot" style="background:var(--burgundy)"></span>
+      Patient Stories
+    </div>
+    <h2 class="section-heading" style="color:var(--plum)">Trusted by Patients<br/>Across India</h2>
+    <div class="testimonials-grid" style="max-width:1000px;margin:0 auto">
+      <div class="testimonial-card">
+        <p class="testimonial-quote">For the first time, I carried my full medical history to the hospital on my phone. No lost files, no confusion. MediChain gave me control I never had before.</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">R</div>
+          <div>
+            <div class="author-name">Rajesh Kumar, 68</div>
+            <div class="author-role">Retired Engineer — New Delhi</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <p class="testimonial-quote">MediChain lets me access verified, tamper-proof patient records instantly. The smart contract access system has genuinely changed how I practice medicine.</p>
+        <div class="testimonial-author">
+          <div class="author-avatar">P</div>
+          <div>
+            <div class="author-name">Dr. Priya Mehta</div>
+            <div class="author-role">Cardiologist — Apollo Hospital, Mumbai</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══ CTA BANNER ══ -->
+<section id="cta-banner" class="reveal">
+  <h2>Take Ownership of Your<br/>Health Data Today</h2>
+  <p>Join thousands of patients and doctors building a transparent, fraud-free healthcare system — powered by blockchain.</p>
+  <div class="cta-btns">
+    <a href="#" class="gold-btn">
+      Connect Wallet
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+    </a>
+    <a href="#" class="outline-btn">
+      Schedule Demo
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="footer-brand-name">MediChain</div>
+        <p class="footer-tagline">Decentralized health records. Patient-owned. Blockchain-verified.</p>
+      </div>
+      <ul class="footer-links">
+        <li><a href="#">About</a></li>
+        <li><a href="#how">How It Works</a></li>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+      <div class="footer-socials">
+        <a href="#" class="social-btn">𝕏</a>
+        <a href="#" class="social-btn">GH</a>
+        <a href="#" class="social-btn">DC</a>
+        <a href="#" class="social-btn">in</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">© 2025 MediChain. All records are patient-owned.</span>
+      <div class="footer-chain-badge">
+        <span class="chain-dot"></span>
+        Built on Polygon
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* ── HLS VIDEO SETUP ── */
+  const video = document.getElementById('hero-video');
+  const src = 'https://stream.mux.com/C8rupX7Llb9JmE9TGQ6TB6wGk5NzKn85GRWWWPs00M1k.m3u8';
+  let hls;
+
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = src;
+  } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+    hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+    hls.loadSource(src);
+    hls.attachMedia(video);
+  } else {
+    document.getElementById('hero').style.background = 'linear-gradient(135deg, #3D1824 0%, #0a0205 100%)';
+  }
+
+  window.addEventListener('beforeunload', () => { if (hls) hls.destroy(); });
+
+  /* ── BLUR TEXT ANIMATION ── */
+  const heading = document.getElementById('blur-heading');
+  const words = ['Your', 'Health', 'Records.', 'Your', 'Ownership.'];
+  words.forEach((w, i) => {
+    const span = document.createElement('span');
+    span.className = 'blur-word';
+    span.textContent = w;
+    span.style.transitionDelay = (i * 100) + 'ms';
+    if (w === 'Your' && i === 3) {
+      heading.appendChild(document.createElement('br'));
+    }
+    heading.appendChild(span);
+  });
+
+  const blurObserver = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        heading.querySelectorAll('.blur-word').forEach(w => w.classList.add('visible'));
+        blurObserver.disconnect();
+      }
+    });
+  }, { threshold: 0.1 });
+  blurObserver.observe(heading);
+
+  /* ── SCROLL REVEAL ── */
+  const reveals = document.querySelectorAll('.reveal');
+  const revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        revealObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  reveals.forEach(r => revealObserver.observe(r));
+</script>
+</body>
+</html>
