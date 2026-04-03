@@ -1,4 +1,5 @@
 import React from 'react';
+import { TwitterLogoIcon, GitHubLogoIcon, DiscordLogoIcon, LinkedInLogoIcon } from '@radix-ui/react-icons';
 
 const footerLinks = [
   { label: 'About', href: '#about' },
@@ -11,10 +12,10 @@ const footerLinks = [
 ];
 
 const socials = [
-  { label: '𝕏', href: '#' },
-  { label: 'GH', href: '#' },
-  { label: 'DC', href: '#' },
-  { label: 'in', href: '#' },
+  { name: 'X/Twitter', icon: TwitterLogoIcon, href: '#' },
+  { name: 'GitHub', icon: GitHubLogoIcon, href: '#' },
+  { name: 'Discord', icon: DiscordLogoIcon, href: '#' },
+  { name: 'LinkedIn', icon: LinkedInLogoIcon, href: '#' },
 ];
 
 export function FooterSection() {
@@ -49,11 +50,12 @@ export function FooterSection() {
           <div className="flex items-center gap-2">
             {socials.map((s) => (
               <a
-                key={s.label}
+                key={s.name}
                 href={s.href}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-background border border-border text-muted-foreground text-xs font-bold hover:bg-muted hover:text-foreground transition-all duration-200 shadow-sm"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200 shadow-sm"
               >
-                {s.label}
+                <s.icon className="hidden md:block w-4 h-4" />
+                <s.icon className="md:hidden w-3.5 h-3.5" />
               </a>
             ))}
           </div>

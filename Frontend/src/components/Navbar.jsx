@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ArrowUpRight } from 'lucide-react';
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 
 const navLinks = [
@@ -58,9 +58,7 @@ export function Navbar() {
               className="flex items-center gap-1.5 text-[0.8rem] font-body px-5 py-2.5 rounded-full font-medium bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-all duration-200 hover:-translate-y-px"
             >
               Connect Wallet
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M7 17L17 7M17 7H7M17 7v10"/>
-              </svg>
+              <ArrowUpRight className="w-4 h-4" />
             </a>
           </div>
 
