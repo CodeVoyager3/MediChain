@@ -1,4 +1,5 @@
 import React from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { MissionSection } from './components/MissionSection';
@@ -11,13 +12,13 @@ import { HowItWorksSection } from './components/HowItWorksSection';
 import { TestimonialsSection } from './components/TestimonialsSection';
 import { CtaBannerSection } from './components/CtaBannerSection';
 import { FooterSection } from './components/SiteFooter';
+import PatientDashboard from './components/dashboard/PatientDashboard'
+import DoctorDashboard from './components/dashboard/DoctorDashboard'
+import InsurerDashboard from './components/dashboard/InsurerDashboard'
 
-function App() {
+function LandingPage() {
   return (
     <div className="flex flex-col bg-background overflow-x-hidden w-full">
-      <Navbar />
-
-      {/* ── Existing sections (untouched) ── */}
       <div id="hero">
         <HeroSection />
       </div>
@@ -25,8 +26,6 @@ function App() {
       <ChallengesSection />
       <CoreFeaturesSection />
       <PlatformEcosystemSection />
-
-      {/* ── New sections ── */}
       <StatsSection />
       <ArchitectureSection />
       <HowItWorksSection />
@@ -44,6 +43,31 @@ function App() {
         <FooterSection />
       </div>
     </div>
+  );
+}
+
+function AppContent() {
+  const location = useLocation();
+  const isLandingPage = location.pathname === '/';
+
+  return (
+    <>
+      {isLandingPage && <Navbar />}
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/patient" element={<PatientDashboard />} />
+        <Route path="/doctor" element={<DoctorDashboard />} />
+        <Route path="/insurer" element={<InsurerDashboard />} />
+      </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 

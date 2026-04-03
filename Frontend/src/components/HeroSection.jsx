@@ -3,6 +3,24 @@ import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
 import { Button } from './ui/button';
 import DashboardPreview from './DashboardPreview';
+import { createThirdwebClient } from "thirdweb";
+import { ConnectButton } from "thirdweb/react";
+import { inAppWallet, createWallet } from "thirdweb/wallets";
+
+const client = createThirdwebClient({ 
+  clientId: import.meta.env.VITE_CLIENT_ID 
+});
+
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "facebook", "phone"],
+    },
+  }),
+];
+
 
 export function HeroSection() {
   return (
@@ -55,9 +73,14 @@ export function HeroSection() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mt-5 flex items-center gap-3"
         >
-          <Button className="rounded-full px-6 py-5 text-sm font-medium font-body h-12">
-            Connect Wallet
-          </Button>
+          <ConnectButton
+            client={client}
+            wallets={wallets}
+            theme="light"
+            connectModal={{ size: 'wide' }}
+            connectButton={{ label: 'Connect Wallet' }}
+            className="inline-flex justify-center items-center rounded-full px-6 py-5 text-sm font-medium font-body h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+          />
         </motion.div>
 
         <motion.div

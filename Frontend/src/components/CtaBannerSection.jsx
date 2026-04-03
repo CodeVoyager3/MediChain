@@ -2,6 +2,23 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ShimmerButton } from './magicui/shimmer-button';
 import { ArrowUpRight, CalendarDays } from 'lucide-react';
+import { createThirdwebClient } from "thirdweb";
+import { ConnectButton } from "thirdweb/react";
+import { inAppWallet, createWallet } from "thirdweb/wallets";
+
+const client = createThirdwebClient({ 
+  clientId: import.meta.env.VITE_CLIENT_ID 
+});
+
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "facebook", "phone"],
+    },
+  }),
+];
 
 export function CtaBannerSection() {
   return (
@@ -54,15 +71,14 @@ export function CtaBannerSection() {
           transition={{ duration: 0.65, delay: 0.3 }}
           className="flex flex-wrap items-center justify-center gap-3"
         >
-          <ShimmerButton
-            shimmerColor="rgba(167,139,250,0.6)"
-            background="rgba(139, 92, 246, 0.85)"
-            borderRadius="9999px"
-            className="px-8 h-12 text-sm font-medium font-body gap-2"
-          >
-            Connect Wallet
-            <ArrowUpRight className="w-4 h-4" />
-          </ShimmerButton>
+          <ConnectButton
+            client={client}
+            wallets={wallets}
+            theme="light"
+            connectModal={{ size: 'wide' }}
+            connectButton={{ label: 'Connect Wallet' }}
+            className="inline-flex justify-center items-center rounded-full px-8 h-12 text-sm font-medium font-body bg-violet-500/85 text-white hover:bg-violet-500/90 transition-all duration-200"
+          />
 
           <button className="flex items-center gap-2 px-7 h-12 rounded-full border border-border text-muted-foreground text-sm font-body font-normal hover:border-foreground/45 hover:text-foreground transition-all duration-200">
             <CalendarDays className="w-4 h-4" />

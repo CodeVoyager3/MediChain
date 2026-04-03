@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowUpRight } from 'lucide-react';
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
+import { createThirdwebClient } from "thirdweb";
+import { ConnectButton } from "thirdweb/react";
+import { inAppWallet, createWallet } from "thirdweb/wallets";
 
 const navLinks = [
   { label: 'About', href: '#about' },
@@ -9,6 +12,20 @@ const navLinks = [
   { label: 'Features', href: '#features' },
   { label: 'Patient Stories', href: '#stories' },
   { label: 'Docs', href: '#' },
+];
+
+const client = createThirdwebClient({ 
+  clientId: import.meta.env.VITE_CLIENT_ID 
+});
+
+const wallets = [
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  inAppWallet({
+    auth: {
+      options: ["email", "google", "apple", "facebook", "phone"],
+    },
+  }),
 ];
 
 export function Navbar() {
@@ -53,13 +70,14 @@ export function Navbar() {
           {/* Right side: theme toggle + CTA */}
           <div className="hidden md:flex items-center gap-3">
             <AnimatedThemeToggler />
-            <a
-              href="#"
-              className="flex items-center gap-1.5 text-[0.8rem] font-body px-5 py-2.5 rounded-full font-medium bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-all duration-200 hover:-translate-y-px"
-            >
-              Connect Wallet
-              <ArrowUpRight className="w-4 h-4" />
-            </a>
+            <ConnectButton
+              client={client}
+              wallets={wallets}
+              theme="light"
+              connectModal={{ size: 'wide' }}
+              connectButton={{ label: 'Connect Wallet' }}
+              className="inline-flex items-center gap-1.5 text-[0.8rem] font-body px-5 py-2.5 rounded-full font-medium bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-all duration-200 hover:-translate-y-px"
+            />
           </div>
 
           {/* Mobile: theme toggle + hamburger */}
@@ -98,12 +116,14 @@ export function Navbar() {
                 </li>
               ))}
               <li>
-                <a
-                  href="#"
+                <ConnectButton
+                  client={client}
+                  wallets={wallets}
+                  theme="light"
+                  connectModal={{ size: 'wide' }}
+                  connectButton={{ label: 'Connect Wallet' }}
                   className="inline-flex items-center gap-1.5 text-sm font-body px-5 py-2.5 rounded-full bg-black text-white dark:bg-white dark:text-black font-medium"
-                >
-                  Connect Wallet
-                </a>
+                />
               </li>
             </ul>
           </motion.div>
