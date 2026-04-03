@@ -348,10 +348,10 @@ export default function PatientDashboard() {
                         </div>
 
                         {/* Search */}
-                        <div className="hidden lg:flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-[7px] text-[11px] w-48 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500">
+                        <div className="hidden lg:flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-[7px] text-[11px] w-48 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 focus-within:bg-white dark:focus-within:bg-gray-900 focus-within:ring-2 focus-within:ring-violet-500/50 transition-colors">
                             <Search className="w-3.5 h-3.5 shrink-0" />
-                            <span className="flex-1">Search</span>
-                            <span className="text-[10px] border border-gray-200 dark:border-gray-700 rounded px-1.5 font-medium text-gray-400 dark:text-gray-500">⌘K</span>
+                            <input type="text" placeholder="Search" className="flex-1 bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 min-w-0" />
+                            <span className="text-[10px] border border-gray-200 dark:border-gray-700 rounded px-1.5 font-medium text-gray-400 dark:text-gray-500 shrink-0">⌘K</span>
                         </div>
 
                         {[HelpCircle, Mail].map((Icon, i) => (
