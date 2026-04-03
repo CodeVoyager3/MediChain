@@ -22,6 +22,9 @@
     --border: 0 0% 90%;
     --ring: 239 84% 67%;
 
+    --card: 0 0% 100%;
+    --card-foreground: 210 14% 17%;
+
     --radius: 0.5rem;
 
     --font-display: 'Instrument Serif', serif;
@@ -49,6 +52,9 @@
 
     --border: 222 15% 18%;
     --ring: 239 84% 67%;
+
+    --card: 222 15% 12%;
+    --card-foreground: 210 20% 96%;
 
     --shadow-dashboard: 0 25px 80px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
   }

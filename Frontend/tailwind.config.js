@@ -32,6 +32,10 @@ export default {
         },
         border: 'hsl(var(--border))',
         ring: 'hsl(var(--ring))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
       },
       borderRadius: {
         DEFAULT: 'var(--radius)',
