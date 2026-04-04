@@ -4,59 +4,59 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 210 14% 17%;
+    --background: 36 50% 78%; /* Ceramic #DECBB0 */
+    --foreground: 43 27% 8%; /* Blueberry #1B1810 */
 
-    --primary: 210 14% 17%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 43 27% 8%;
+    --primary-foreground: 36 50% 78%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 9%;
+    --secondary: 18 69% 41%; /* Lily #B04B20 */
+    --secondary-foreground: 36 50% 90%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 184 5% 55%;
+    --muted: 36 40% 72%;
+    --muted-foreground: 36 20% 40%;
 
-    --accent: 239 84% 67%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 18 69% 41%;
+    --accent-foreground: 36 50% 90%;
 
-    --border: 0 0% 90%;
-    --ring: 239 84% 67%;
+    --border: 36 30% 68%;
+    --ring: 18 69% 41%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 210 14% 17%;
+    --card: 36 45% 82%;
+    --card-foreground: 43 27% 8%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     --font-display: 'Instrument Serif', serif;
     --font-body: 'Inter', sans-serif;
 
-    --shadow-dashboard: 0 25px 80px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    --shadow-dashboard: 0 25px 80px -12px rgba(27, 24, 16, 0.08), 0 0 0 1px rgba(27, 24, 16, 0.06);
+
+    /* Custom UI Effect Tokens */
+    --magic-glow: 36 60% 88%; /* Light ceramic glow */
+    --particle-color: 18 69% 41%; /* Lily particles */
   }
 
-  /* ── Dark mode tokens ── */
   .dark {
-    --background: 222 20% 9%;
-    --foreground: 210 20% 96%;
-
-    --primary: 210 20% 96%;
-    --primary-foreground: 222 20% 9%;
-
-    --secondary: 222 15% 14%;
-    --secondary-foreground: 210 20% 96%;
-
-    --muted: 222 15% 14%;
-    --muted-foreground: 215 10% 55%;
-
-    --accent: 239 84% 67%;
-    --accent-foreground: 0 0% 100%;
-
-    --border: 222 15% 18%;
-    --ring: 239 84% 67%;
-
-    --card: 222 15% 12%;
-    --card-foreground: 210 20% 96%;
-
-    --shadow-dashboard: 0 25px 80px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --background: 0 0% 5%;
+    --foreground: 60 5% 90%;
+    --primary: 60 5% 90%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 68 76% 64%;
+    --secondary-foreground: 0 0% 5%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 330 100% 80%;
+    --accent-foreground: 0 0% 5%;
+    --border: 0 0% 14%;
+    --ring: 68 76% 64%;
+    --card: 0 0% 7%;
+    --card-foreground: 60 5% 90%;
+    --shadow-dashboard: 0 25px 80px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(210, 231, 95, 0.04);
+    
+    /* Custom UI Effect Tokens */
+    --magic-glow: 0 0% 15%; /* #262626 */
+    --particle-color: 68 76% 64%; /* lime */
   }
 }
 
@@ -66,7 +66,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
 }
 
@@ -77,78 +77,8 @@
   mix-blend-mode: normal;
 }
 
-/* ─── Visual Effects Utilities ────────────────────────────── */
-
-@keyframes liquid-sweep {
-  0% { transform: translate(-100%, -100%) rotate(45deg); }
-  100% { transform: translate(100%, 100%) rotate(45deg); }
-}
-
 @keyframes float-particle {
   0% { transform: translate(0, 0) scale(1); opacity: 0.3; }
   50% { transform: translate(15px, -15px) scale(1.1); opacity: 0.6; }
   100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
 }
-
-.glass-card {
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-}
-
-.glass-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opactity='0.05'/%3E%3C/svg%3E");
-  opacity: 0.03;
-  pointer-events: none;
-  z-index: -1;
-}
-
-.glass-card-hover {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-card-hover:hover {
-  transform: scale(1.01);
-}
-
-.glass-card-hover::after {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    to bottom right,
-    transparent 40%,
-    rgba(255, 255, 255, 0.1) 45%,
-    rgba(255, 255, 255, 0.4) 50%,
-    rgba(255, 255, 255, 0.1) 55%,
-    transparent 60%
-  );
-  transform: translate(-100%, -100%) rotate(45deg);
-  pointer-events: none;
-  z-index: 10;
-  transition: opacity 0.3s ease;
-  opacity: 0;
-}
-
-.glass-card-hover:hover::after {
-  animation: liquid-sweep 1s ease-out forwards;
-  opacity: 1;
-}
-
-.dark .glass-card-hover::after {
-  background: linear-gradient(
-    to bottom right,
-    transparent 40%,
-    rgba(139, 92, 246, 0.05) 45%,
-    rgba(139, 92, 246, 0.2) 50%,
-    rgba(139, 92, 246, 0.05) 55%,
-    transparent 60%
-  );
-}

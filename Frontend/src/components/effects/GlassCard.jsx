@@ -9,7 +9,7 @@ function cn(...inputs) {
 export function GlassCard({ children, className, interactive = true }) {
     return (
         <div className={cn(
-            "glass-card bg-white/60 dark:bg-gray-900/40 relative h-full rounded-xl w-full",
+            "glass-card bg-[#141415] relative h-full rounded-xl w-full",
             interactive && "glass-card-hover",
             className
         )}>

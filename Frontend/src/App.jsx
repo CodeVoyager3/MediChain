@@ -36,7 +36,7 @@ function LandingPage() {
           className="absolute inset-x-0 bottom-0 h-full pointer-events-none"
           style={{
             background:
-              'radial-gradient(ellipse 80% 70% at 50% 65%, hsl(239 84% 67% / 0.15) 0%, transparent 60%)',
+              'radial-gradient(ellipse 80% 70% at 50% 65%, hsl(68 76% 64% / 0.1) 0%, transparent 60%)',
           }}
         />
         <CtaBannerSection />

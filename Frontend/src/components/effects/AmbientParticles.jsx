@@ -23,7 +23,7 @@ export function AmbientParticles() {
             {particles.map((p) => (
                 <div
                     key={p.id}
-                    className="absolute bg-violet-400/20 dark:bg-violet-500/20 rounded-full blur-[3px]"
+                    className="absolute bg-[hsl(var(--particle-color)_/_0.15)] rounded-full blur-[3px]"
                     style={{
                         left: `${p.x}%`,
                         top: `${p.y}%`,

@@ -27,7 +27,7 @@ function Cube() {
         <Edges
           linewidth={2}
           threshold={15}
-          color="#8B5CF6"
+          color="#D2E75F"
         />
       </mesh>
     </Float>
