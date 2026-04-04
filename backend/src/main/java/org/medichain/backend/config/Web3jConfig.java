@@ -19,10 +19,10 @@ public class Web3jConfig {
 		try {
 			// Ping the network to ensure we are connected
 			String clientVersion = web3j.web3ClientVersion().send().getWeb3ClientVersion();
-			System.out.println("✅ Successfully connected to Polygon Amoy!");
-			System.out.println("🚀 Client Version: " + clientVersion);
+			System.out.println("Successfully connected to Polygon Amoy!");
+			System.out.println("Client Version: " + clientVersion);
 		} catch (Exception e) {
-			System.err.println("❌ Failed to connect to the blockchain: " + e.getMessage());
+			System.err.println("Failed to connect to the blockchain: " + e.getMessage());
 		}
 		
 		return web3j;
