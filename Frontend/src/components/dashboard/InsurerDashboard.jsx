@@ -21,6 +21,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 
+import { useAuth } from '../../context/AuthContext';
+import { viewRecordAsInsurer } from '../../services/api';
+
 /* ─── NAV ─────────────────────────────────────────────────── */
 const NAV = {
     main: [
@@ -37,27 +40,6 @@ const NAV = {
         { id: 'logout', label: 'Log out', icon: LogOut },
     ],
 };
-
-/* ─── MOCK DATA ───────────────────────────────────────────── */
-const RECENT_VERIFICATIONS = [
-    { id: 1, patient: '0x71C7…3F4b', tokenId: '#4281', status: 'Verified', date: '03 Apr 2026', doctor: 'Dr. Sharma' },
-    { id: 2, patient: '0xA3D9…8E2c', tokenId: '#4280', status: 'Verified', date: '02 Apr 2026', doctor: 'Dr. Mehta' },
-    { id: 3, patient: '0x5bF1…9A7d', tokenId: '#4278', status: 'Superseded', date: '01 Apr 2026', doctor: 'Dr. Sharma' },
-    { id: 4, patient: '0x82E4…1C3f', tokenId: '#4275', status: 'Hash Mismatch', date: '28 Mar 2026', doctor: 'Dr. Patel' },
-];
-
-const AUDIT_TRAIL = [
-    {
-        id: 'v2', version: 'V2 (Current)', date: '03 Apr 2026, 10:42 AM',
-        hash: '0x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
-        doctor: 'Dr. Ananya Sharma', status: 'Active', note: 'Corrected dosage from 500mg to 250mg',
-    },
-    {
-        id: 'v1', version: 'V1 (Superseded)', date: '01 Apr 2026, 3:18 PM',
-        hash: '0x3c7a2e5d8b1f4a9c6e0d2b7f5a3c8e1d4b6f9a2c5e8d1b4f7a0c3e6d9b2f5a',
-        doctor: 'Dr. Ananya Sharma', status: 'Superseded', note: 'Original prescription — contained dosage error',
-    },
-];
 
 /* ─── Sidebar nav item ────────────────────────────────────── */
 function NavItem({ item, active, onClick }) {
@@ -78,7 +60,7 @@ function NavItem({ item, active, onClick }) {
 }
 
 /* ─── Sidebar ─────────────────────────────────────────────── */
-function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
+function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout }) {
     return (
         <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
             <div className="flex items-center justify-between px-5 py-[18px] border-b border-border">
@@ -116,7 +98,9 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
                             const Icon = item.icon;
                             return (
                                 <li key={item.id}>
-                                    <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
+                                    <button
+                                        onClick={item.id === 'logout' ? onLogout : undefined}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
                                         ${item.id === 'logout'
                                             ? 'text-muted-foreground hover:bg-red-950/30 hover:text-red-400'
                                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -233,9 +217,9 @@ function AuditVersionCard({ version, isCurrent }) {
 /* ─── Main Dashboard ──────────────────────────────────────── */
 export default function InsuranceDashboard() {
     const account = useActiveAccount();
+    const { user, logout } = useAuth();
     const [activeNav, setActiveNav] = useState('overview');
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [isDark, setIsDark] = useState(true);
 
     // Claim Verification Engine state
     const [walletAddress, setWalletAddress] = useState('');
@@ -243,23 +227,73 @@ export default function InsuranceDashboard() {
     const [pdfFile, setPdfFile] = useState(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [verificationResult, setVerificationResult] = useState(null);
+    const [verifyError, setVerifyError] = useState('');
     const [dragActive, setDragActive] = useState(false);
     const fileInputRef = useRef(null);
 
-    /* Simulated verification */
-    const handleVerify = useCallback(() => {
-        if (!walletAddress || !tokenId || !pdfFile) return;
+    // Verification history (tracked locally for this session)
+    const [verificationHistory, setVerificationHistory] = useState([]);
+
+    // Audit trail from API response
+    const [auditTrail, setAuditTrail] = useState([]);
+
+    const displayName = user?.name || 'Insurer';
+
+    /* Real blockchain verification via backend API */
+    const handleVerify = useCallback(async () => {
+        if (!walletAddress || !tokenId) return;
         setIsVerifying(true);
         setVerificationResult(null);
-        setTimeout(() => {
+        setVerifyError('');
+
+        try {
+            const recordId = parseInt(tokenId.replace('#', ''), 10);
+            const insurerAddress = account?.address || user?.walletAddress;
+
+            const res = await viewRecordAsInsurer(insurerAddress, walletAddress, recordId);
+
+            // Map the API response to our UI format
+            const result = {
+                signature: res.securityChecks?.validDoctorSignature ?? true,
+                hashMatch: res.securityChecks?.hashMatch ?? true,
+                notSuperseded: res.securityChecks?.notSuperseded ?? true,
+            };
+
+            setVerificationResult(result);
+
+            // Populate audit trail from response
+            if (res.auditTrail && res.auditTrail.length > 0) {
+                setAuditTrail(res.auditTrail.map((entry, i) => ({
+                    id: `v${res.auditTrail.length - i}`,
+                    version: i === 0 ? `V${res.auditTrail.length - i} (Current)` : `V${res.auditTrail.length - i} (Superseded)`,
+                    date: entry.date || new Date().toLocaleDateString(),
+                    hash: entry.hash || '0x0000…',
+                    doctor: entry.doctor || 'Unknown',
+                    status: i === 0 ? 'Active' : 'Superseded',
+                    note: entry.note || '',
+                })));
+            }
+
+            // Append to history
+            const allPassed = result.signature && result.hashMatch && result.notSuperseded;
+            setVerificationHistory(prev => [
+                {
+                    id: Date.now(),
+                    patient: `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`,
+                    tokenId: `#${recordId}`,
+                    status: allPassed ? 'Verified' : result.notSuperseded ? 'Hash Mismatch' : 'Superseded',
+                    date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                    doctor: res.doctorAddress ? `${res.doctorAddress.slice(0, 6)}…` : 'N/A',
+                },
+                ...prev,
+            ]);
+        } catch (err) {
+            console.error('Verification failed:', err);
+            setVerifyError(err.message || 'Verification failed. Ensure you have access to this record.');
+        } finally {
             setIsVerifying(false);
-            setVerificationResult({
-                signature: true,
-                hashMatch: true,
-                notSuperseded: true,
-            });
-        }, 2200);
-    }, [walletAddress, tokenId, pdfFile]);
+        }
+    }, [walletAddress, tokenId, account, user]);
 
     const handleDrop = useCallback((e) => {
         e.preventDefault();
@@ -269,20 +303,30 @@ export default function InsuranceDashboard() {
         }
     }, []);
 
-    const canVerify = walletAddress.trim() && tokenId.trim() && pdfFile;
+    const canVerify = walletAddress.trim() && tokenId.trim();
+
+    const handleLogout = () => {
+        logout();
+        window.location.href = '/';
+    };
+
+    // Stats computed from history
+    const totalVerified = verificationHistory.filter(v => v.status === 'Verified').length;
+    const totalMismatch = verificationHistory.filter(v => v.status === 'Hash Mismatch').length;
+    const totalSuperseded = verificationHistory.filter(v => v.status === 'Superseded').length;
 
     return (
         <div className="flex h-screen overflow-hidden font-body bg-background">
             {/* Sidebar */}
             <div className="hidden lg:flex">
-                <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} />
+                <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} />
             </div>
 
             {mobileOpen && (
                 <>
                     <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
                     <div className="fixed inset-y-0 left-0 z-50 lg:hidden">
-                        <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} />
+                        <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} />
                     </div>
                 </>
             )}
@@ -299,7 +343,7 @@ export default function InsuranceDashboard() {
                         </button>
                         <div>
                             <h1 className="text-[15px] font-semibold leading-tight text-foreground">
-                                Claims & Verification{account ? ' 🔒' : ''}
+                                Claims & Verification — {displayName} 🔒
                             </h1>
                             <p className="text-[11px] hidden sm:block text-muted-foreground">
                                 Blockchain-backed claim integrity engine
@@ -311,7 +355,7 @@ export default function InsuranceDashboard() {
                         <div className="hidden md:flex items-center gap-2">
                             <div className="flex items-center gap-1.5 border border-border rounded-xl px-3 py-[7px] text-[11px] text-muted-foreground">
                                 <Calendar className="w-3.5 h-3.5" />
-                                <span>Thu, 03 Apr 2026</span>
+                                <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
                             </div>
                             <button className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-[7px] rounded-xl bg-gray-100 text-gray-900 transition-opacity hover:opacity-85">
                                 <Download className="w-3.5 h-3.5" />
@@ -335,7 +379,7 @@ export default function InsuranceDashboard() {
                         <AnimatedThemeToggler />
 
                         <div className="w-8 h-8 rounded-full flex items-center justify-center text-background text-[11px] font-bold shrink-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #D2E75F, #c2d44e)' }}>
-                            IN
+                            {displayName.charAt(0).toUpperCase()}
                         </div>
                     </div>
                 </header>
@@ -353,10 +397,10 @@ export default function InsuranceDashboard() {
                     {/* ════ ROW 1: Stats ════ */}
                     <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
-                            { label: 'Claims Processed', value: 1284, icon: FileSearch, trend: '+12.3%', up: true },
-                            { label: 'Verified Today', value: 47, icon: CheckCircle2, trend: '+8.1%', up: true },
-                            { label: 'Hash Mismatches', value: 3, icon: AlertTriangle, trend: '-2.4%', up: false },
-                            { label: 'Superseded Records', value: 18, icon: Clock, trend: '+1.2%', up: true },
+                            { label: 'Claims Processed', value: verificationHistory.length, icon: FileSearch, trend: '', up: true },
+                            { label: 'Verified Today', value: totalVerified, icon: CheckCircle2, trend: '', up: true },
+                            { label: 'Hash Mismatches', value: totalMismatch, icon: AlertTriangle, trend: '', up: false },
+                            { label: 'Superseded Records', value: totalSuperseded, icon: Clock, trend: '', up: true },
                         ].map((stat, i) => (
                             <MagicCard key={i} className="bg-transparent overflow-hidden" gradientColor='hsl(var(--muted))'>
                                 <GlassCard interactive={false}>
@@ -367,9 +411,6 @@ export default function InsuranceDashboard() {
                                                 bgClass={i === 2 ? 'bg-amber-900/30' : 'bg-secondary/10'}
                                                 colorClass={i === 2 ? 'text-amber-400' : 'text-secondary'}
                                             />
-                                            <span className={`text-[10px] font-semibold ${stat.up ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                {stat.up ? '↑' : '↓'} {stat.trend}
-                                            </span>
                                         </div>
                                         <div className="text-foreground flex items-center h-9 mb-1">
                                             <NumberTicker value={stat.value} className="text-[2rem] font-bold tracking-tight leading-none" />
@@ -414,7 +455,7 @@ export default function InsuranceDashboard() {
                                             {/* Token ID Input */}
                                             <div>
                                                 <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">
-                                                    Token ID
+                                                    Token ID (Record ID)
                                                 </label>
                                                 <div className="flex items-center gap-2 border border-border rounded-xl px-3.5 py-2.5 bg-background/60 focus-within:ring-2 focus-within:ring-secondary/40 focus-within:border-secondary/40 transition-all">
                                                     <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -431,7 +472,7 @@ export default function InsuranceDashboard() {
                                             {/* PDF Upload Zone */}
                                             <div>
                                                 <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">
-                                                    Patient's PDF Record
+                                                    Patient's PDF Record (Optional)
                                                 </label>
                                                 <div
                                                     onClick={() => fileInputRef.current?.click()}
@@ -472,6 +513,13 @@ export default function InsuranceDashboard() {
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* Error message */}
+                                            {verifyError && (
+                                                <div className="bg-red-950/30 border border-red-900/50 text-red-300 text-xs p-3 rounded-xl">
+                                                    {verifyError}
+                                                </div>
+                                            )}
 
                                             {/* Verify Button */}
                                             <ShimmerButton
@@ -520,7 +568,7 @@ export default function InsuranceDashboard() {
                                                 </div>
                                                 <p className="text-[13px] font-semibold text-muted-foreground mb-1">No claim verified yet</p>
                                                 <p className="text-[11px] text-muted-foreground max-w-[200px]">
-                                                    Submit a wallet address, token ID, and PDF to begin verification.
+                                                    Submit a wallet address and token ID to begin verification.
                                                 </p>
                                             </div>
                                         ) : isVerifying ? (
@@ -533,7 +581,7 @@ export default function InsuranceDashboard() {
                                                     <Loader2 className="w-7 h-7 text-secondary" />
                                                 </motion.div>
                                                 <p className="text-[13px] font-semibold text-secondary mb-1">Querying Blockchain…</p>
-                                                <p className="text-[11px] text-muted-foreground">Hashing PDF & validating on-chain data</p>
+                                                <p className="text-[11px] text-muted-foreground">Validating on-chain data & access grants</p>
                                             </div>
                                         ) : (
                                             <div className="space-y-3 flex-1">
@@ -547,7 +595,7 @@ export default function InsuranceDashboard() {
                                                 <VerificationCheckRow
                                                     icon={Hash}
                                                     label="Hash Match"
-                                                    description="SHA-256 of uploaded PDF matches on-chain hash"
+                                                    description="SHA-256 of record matches on-chain hash"
                                                     verified={verificationResult.hashMatch}
                                                     delay={0.3}
                                                 />
@@ -564,16 +612,37 @@ export default function InsuranceDashboard() {
                                                     initial={{ opacity: 0, scale: 0.95 }}
                                                     animate={{ opacity: 1, scale: 1 }}
                                                     transition={{ delay: 0.9, duration: 0.4 }}
-                                                    className="mt-4 p-4 rounded-2xl bg-emerald-950/30 border border-emerald-900/50"
+                                                    className={`mt-4 p-4 rounded-2xl border ${
+                                                        verificationResult.signature && verificationResult.hashMatch && verificationResult.notSuperseded
+                                                            ? 'bg-emerald-950/30 border-emerald-900/50'
+                                                            : 'bg-red-950/30 border-red-900/50'
+                                                    }`}
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                                                        <p className="text-[12px] font-bold text-emerald-300">
-                                                            Claim is Valid & Authentic
-                                                        </p>
+                                                        {verificationResult.signature && verificationResult.hashMatch && verificationResult.notSuperseded ? (
+                                                            <>
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                                                <p className="text-[12px] font-bold text-emerald-300">
+                                                                    Claim is Valid & Authentic
+                                                                </p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                                                                <p className="text-[12px] font-bold text-red-300">
+                                                                    Claim has Issues
+                                                                </p>
+                                                            </>
+                                                        )}
                                                     </div>
-                                                    <p className="text-[10px] text-emerald-400/70 mt-1 leading-snug ml-6">
-                                                        All three blockchain integrity checks have passed. This record is safe to process for reimbursement.
+                                                    <p className={`text-[10px] mt-1 leading-snug ml-6 ${
+                                                        verificationResult.signature && verificationResult.hashMatch && verificationResult.notSuperseded
+                                                            ? 'text-emerald-400/70'
+                                                            : 'text-red-400/70'
+                                                    }`}>
+                                                        {verificationResult.signature && verificationResult.hashMatch && verificationResult.notSuperseded
+                                                            ? 'All blockchain integrity checks have passed. This record is safe to process for reimbursement.'
+                                                            : 'One or more integrity checks have failed. Please review the details above before processing.'}
                                                     </p>
                                                 </motion.div>
                                             </div>
@@ -602,45 +671,41 @@ export default function InsuranceDashboard() {
                                                 <IconBadge icon={Clock} />
                                                 <span className="text-[13px] font-semibold text-muted-foreground">Audit Trail Viewer</span>
                                             </div>
-                                            <Badge variant="outline" className="flex items-center gap-1.5 py-0.5 border-secondary/30 bg-secondary/10">
-                                                <CircleDot className="w-3 h-3 text-secondary" />
-                                                <span className="text-[10px] font-semibold text-secondary">2 Versions</span>
-                                            </Badge>
+                                            {auditTrail.length > 0 && (
+                                                <Badge variant="outline" className="flex items-center gap-1.5 py-0.5 border-secondary/30 bg-secondary/10">
+                                                    <CircleDot className="w-3 h-3 text-secondary" />
+                                                    <span className="text-[10px] font-semibold text-secondary">{auditTrail.length} Versions</span>
+                                                </Badge>
+                                            )}
                                         </div>
 
-                                        {/* Version Timeline */}
-                                        <div className="relative space-y-4">
-                                            {/* Timeline connector line */}
-                                            <div className="absolute left-[22px] top-[60px] bottom-[60px] w-px bg-gradient-to-b from-emerald-500 via-secondary to-gray-700" />
-
-                                            {/* V2 */}
-                                            <div className="relative flex gap-4">
-                                                <div className="relative z-10 mt-4">
-                                                    <div className="w-[12px] h-[12px] rounded-full bg-emerald-500 ring-4 ring-emerald-900/40 mx-[11px]" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <AuditVersionCard version={AUDIT_TRAIL[0]} isCurrent={true} />
-                                                </div>
+                                        {auditTrail.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                                                <Clock className="w-8 h-8 text-muted-foreground mb-2" />
+                                                <p className="text-xs text-muted-foreground">Verify a claim to view its audit trail</p>
                                             </div>
+                                        ) : (
+                                            <div className="relative space-y-4">
+                                                {auditTrail.length > 1 && (
+                                                    <div className="absolute left-[22px] top-[60px] bottom-[60px] w-px bg-gradient-to-b from-emerald-500 via-secondary to-gray-700" />
+                                                )}
 
-                                            {/* Arrow connector */}
-                                            <div className="flex items-center gap-3 pl-6">
-                                                <div className="flex items-center gap-1 text-muted-foreground">
-                                                    <ArrowRight className="w-3.5 h-3.5" />
-                                                    <span className="text-[9px] font-semibold uppercase tracking-wider">Amended from</span>
-                                                </div>
+                                                {auditTrail.map((version, idx) => (
+                                                    <div key={version.id} className="relative flex gap-4">
+                                                        <div className="relative z-10 mt-4">
+                                                            <div className={`w-[12px] h-[12px] rounded-full mx-[11px] ${
+                                                                idx === 0
+                                                                    ? 'bg-emerald-500 ring-4 ring-emerald-900/40'
+                                                                    : 'bg-gray-600 ring-4 ring-muted'
+                                                            }`} />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <AuditVersionCard version={version} isCurrent={idx === 0} />
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-
-                                            {/* V1 */}
-                                            <div className="relative flex gap-4">
-                                                <div className="relative z-10 mt-4">
-                                                    <div className="w-[12px] h-[12px] rounded-full bg-gray-600 ring-4 ring-muted mx-[11px]" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <AuditVersionCard version={AUDIT_TRAIL[1]} isCurrent={false} />
-                                                </div>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </GlassCard>
                             </MagicCard>
@@ -656,55 +721,53 @@ export default function InsuranceDashboard() {
                                                 <IconBadge icon={Activity} />
                                                 <span className="text-[13px] font-semibold text-muted-foreground">Recent Verifications</span>
                                             </div>
-                                            <Button variant="ghost" className="h-7 text-[10px] text-secondary hover:bg-secondary/10 gap-1">
-                                                View All
-                                                <ChevronRight className="w-3 h-3" />
-                                            </Button>
                                         </div>
 
                                         <div className="space-y-3">
-                                            {RECENT_VERIFICATIONS.map((v, i) => {
-                                                const isVerified = v.status === 'Verified';
-                                                const isSuperseded = v.status === 'Superseded';
-                                                return (
-                                                    <motion.div
-                                                        key={v.id}
-                                                        initial={{ opacity: 0, x: 10 }}
-                                                        whileInView={{ opacity: 1, x: 0 }}
-                                                        viewport={{ once: true }}
-                                                        transition={{ delay: i * 0.08 }}
-                                                        className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-background/60 hover:-translate-x-1 transition-all duration-300"
-                                                    >
-                                                        <div className="flex items-center gap-3 min-w-0">
-                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                                                isVerified ? 'bg-emerald-900/30' : isSuperseded ? 'bg-amber-900/30' : 'bg-red-900/30'
+                                            {verificationHistory.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground text-center py-8">No verifications yet this session</p>
+                                            ) : (
+                                                verificationHistory.slice(0, 6).map((v, i) => {
+                                                    const isVerified = v.status === 'Verified';
+                                                    const isSuperseded = v.status === 'Superseded';
+                                                    return (
+                                                        <motion.div
+                                                            key={v.id}
+                                                            initial={{ opacity: 0, x: 10 }}
+                                                            whileInView={{ opacity: 1, x: 0 }}
+                                                            viewport={{ once: true }}
+                                                            transition={{ delay: i * 0.08 }}
+                                                            className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-background/60 hover:-translate-x-1 transition-all duration-300"
+                                                        >
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                                    isVerified ? 'bg-emerald-900/30' : isSuperseded ? 'bg-amber-900/30' : 'bg-red-900/30'
+                                                                }`}>
+                                                                    {isVerified ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> :
+                                                                     isSuperseded ? <Clock className="w-4 h-4 text-amber-500" /> :
+                                                                     <AlertTriangle className="w-4 h-4 text-red-500" />}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[12px] font-semibold text-foreground font-mono">{v.patient}</span>
+                                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{v.tokenId}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                                        <span className="text-[10px] text-muted-foreground">{v.date}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <Badge variant="outline" className={`text-[10px] font-semibold border-none shrink-0 ${
+                                                                isVerified ? 'bg-emerald-900/30 text-emerald-400' :
+                                                                isSuperseded ? 'bg-amber-900/30 text-amber-400' :
+                                                                'bg-red-900/30 text-red-400'
                                                             }`}>
-                                                                {isVerified ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> :
-                                                                 isSuperseded ? <Clock className="w-4 h-4 text-amber-500" /> :
-                                                                 <AlertTriangle className="w-4 h-4 text-red-500" />}
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[12px] font-semibold text-foreground font-mono">{v.patient}</span>
-                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{v.tokenId}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 mt-0.5">
-                                                                    <span className="text-[10px] text-muted-foreground">{v.date}</span>
-                                                                    <span className="text-[10px] text-muted-foreground">·</span>
-                                                                    <span className="text-[10px] text-muted-foreground">{v.doctor}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <Badge variant="outline" className={`text-[10px] font-semibold border-none shrink-0 ${
-                                                            isVerified ? 'bg-emerald-900/30 text-emerald-400' :
-                                                            isSuperseded ? 'bg-amber-900/30 text-amber-400' :
-                                                            'bg-red-900/30 text-red-400'
-                                                        }`}>
-                                                            {v.status}
-                                                        </Badge>
-                                                    </motion.div>
-                                                );
-                                            })}
+                                                                {v.status}
+                                                            </Badge>
+                                                        </motion.div>
+                                                    );
+                                                })
+                                            )}
                                         </div>
                                     </div>
                                 </GlassCard>

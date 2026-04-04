@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import {
     LayoutDashboard, FileText, ShieldCheck, Bell, Settings, LogOut,
     Stethoscope, Activity, MoreHorizontal, Search, Plus, Calendar,
     Hospital, HeartPulse, Syringe, Menu, HelpCircle, Mail, Filter,
-    CheckCircle2, ClipboardList, Download, Bot, ChevronsLeft, Upload,
+    CheckCircle2, ClipboardList, Download, Bot, ChevronsLeft, Upload, Loader2, X,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 
@@ -20,45 +20,32 @@ import { ShimmerButton } from '../magicui/shimmer-button';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 
+import { useAuth } from '../../context/AuthContext';
+import { getPatientVault, grantAccess, revokeAccess } from '../../services/api';
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-/* ─── Mock Data ─────────────────────────────────────────── */
-const CHART_DATA = [
-    { month: 'Jan', v: 2 }, { month: 'Feb', v: 3 }, { month: 'Mar', v: 5 },
-    { month: 'Apr', v: 4 }, { month: 'May', v: 2 }, { month: 'Jun', v: 3 },
-    { month: 'Jul', v: 6 }, { month: 'Aug', v: 8 }, { month: 'Sep', v: 4 },
-    { month: 'Oct', v: 2 }, { month: 'Nov', v: 3 }, { month: 'Dec', v: 1 },
+/* ─── Fallback Mock Data (shown while API loads or on error) ──── */
+const FALLBACK_CHART_DATA = [
+    { month: 'Jan', v: 0 }, { month: 'Feb', v: 0 }, { month: 'Mar', v: 0 },
+    { month: 'Apr', v: 0 }, { month: 'May', v: 0 }, { month: 'Jun', v: 0 },
+    { month: 'Jul', v: 0 }, { month: 'Aug', v: 0 }, { month: 'Sep', v: 0 },
+    { month: 'Oct', v: 0 }, { month: 'Nov', v: 0 }, { month: 'Dec', v: 0 },
 ];
 
-const RECENT_RECORDS = [
-    { id: 1, type: 'Blood Test Report', icon: Activity, status: 'Active' },
-    { id: 2, type: 'Chest X-Ray', icon: Hospital, status: 'Active' },
-    { id: 3, type: 'Vaccination Record', icon: Syringe, status: 'Active' },
-    { id: 4, type: 'Cardiology Report', icon: HeartPulse, status: 'Inactive' },
-];
-
-const ACCESS_GRANTS = [
-    { id: 1, name: 'Dr. Ananya Sharma', specialty: 'Haematologist', avatar: 'AS', progress: 62, label: '112 / 180 days' },
-    { id: 2, name: 'Dr. Rohan Mehta', specialty: 'Radiologist', avatar: 'RM', progress: 45, label: '99 / 180 days' },
-];
-
-const AUDIT_LOG = [
-    { id: 1, type: 'Blood Test Report', icon: Activity, date: 'Wed, 28 Mar 2026', doctor: 'Dr. Ananya Sharma', status: 'Verified' },
-    { id: 2, type: 'Access Granted', icon: ShieldCheck, date: 'Tue, 27 Mar 2026', doctor: 'Dr. Rohan Mehta', status: 'Success' },
-    { id: 3, type: 'Chest X-Ray', icon: Hospital, date: 'Sun, 14 Feb 2026', doctor: 'Dr. Rohan Mehta', status: 'Verified' },
-];
+const RECORD_ICONS = { 'Blood Test': Activity, 'MRI': Hospital, 'Vaccination': Syringe, 'Cardiology': HeartPulse };
 
 const NAV = {
     main: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-        { id: 'records', label: 'My Records', icon: FileText, badge: 24 },
+        { id: 'records', label: 'My Records', icon: FileText },
         { id: 'access', label: 'Access Control', icon: ShieldCheck },
-        { id: 'appointments', label: 'Appointments', icon: Calendar, badge: 2 },
+        { id: 'appointments', label: 'Appointments', icon: Calendar },
     ],
     features: [
-        { id: 'prescriptions', label: 'Prescriptions', icon: ClipboardList, badge: 12 },
+        { id: 'prescriptions', label: 'Prescriptions', icon: ClipboardList },
         { id: 'scans', label: 'Scans & Imaging', icon: Bot },
-        { id: 'notifications', label: 'Notifications', icon: Bell, badge: 5 },
+        { id: 'notifications', label: 'Notifications', icon: Bell },
     ],
     general: [
         { id: 'settings', label: 'Settings', icon: Settings },
@@ -66,10 +53,10 @@ const NAV = {
     ],
 };
 
-const short = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '0x71C7…3F4b';
+const short = (addr) => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '0x0000…0000';
 
 /* ─── Bar Chart ─────────────────────────────────────────── */
-function BarChart() {
+function BarChart({ chartData }) {
     const isDark = document.documentElement.classList.contains('dark');
     const barBg = isDark ? '#D2E75F' : '#B04B20';
     const barHover = isDark ? '#c2d44e' : '#8A3B19';
@@ -78,11 +65,11 @@ function BarChart() {
     const tooltipBody = isDark ? '#e5e5e0' : '#1B1810';
 
     const data = {
-        labels: CHART_DATA.map(d => d.month),
+        labels: chartData.map(d => d.month),
         datasets: [
             {
                 label: 'Records',
-                data: CHART_DATA.map(d => d.v),
+                data: chartData.map(d => d.v),
                 backgroundColor: barBg,
                 hoverBackgroundColor: barHover,
                 borderRadius: 4,
@@ -123,7 +110,6 @@ function BarChart() {
             },
             y: {
                 beginAtZero: true,
-                max: 10,
                 grid: { color: 'hsl(var(--border))', drawBorder: false },
                 ticks: { stepSize: 2, color: '#555', font: { size: 10, family: 'Inter' }, padding: 10 },
                 border: { display: false }
@@ -167,7 +153,7 @@ function NavItem({ item, active, onClick }) {
 }
 
 /* ─── Sidebar ───────────────────────────────────────────── */
-function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
+function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout }) {
     return (
         <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
             {/* Logo */}
@@ -216,7 +202,9 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
                             const Icon = item.icon;
                             return (
                                 <li key={item.id}>
-                                    <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
+                                    <button
+                                        onClick={item.id === 'logout' ? onLogout : undefined}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
                                         ${item.id === 'logout'
                                             ? 'text-muted-foreground hover:bg-red-950/30 hover:text-red-400'
                                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -260,20 +248,137 @@ function IconBadge({ icon: Icon }) {
     );
 }
 
+/* ─── Grant Access Modal ─────────────────────────────────── */
+function GrantAccessModal({ open, onClose, records }) {
+    const [doctorAddr, setDoctorAddr] = useState('');
+    const [selectedRecords, setSelectedRecords] = useState([]);
+    const [duration, setDuration] = useState(86400); // 24h default
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    if (!open) return null;
+
+    const toggleRecord = (id) => {
+        setSelectedRecords(prev =>
+            prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+        );
+    };
+
+    const handleGrant = async () => {
+        if (!doctorAddr.trim() || selectedRecords.length === 0) return;
+        setLoading(true);
+        setError('');
+        try {
+            await grantAccess(doctorAddr.trim(), selectedRecords, duration);
+            onClose(true); // success
+        } catch (err) {
+            setError(err.message || 'Failed to grant access');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-md mx-4 bg-card border border-border rounded-2xl shadow-2xl">
+                <div className="flex items-center justify-between px-6 pt-5 pb-3">
+                    <h3 className="text-sm font-semibold text-foreground">Grant Record Access</h3>
+                    <button onClick={() => onClose(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="px-6 pb-5 space-y-4">
+                    <div>
+                        <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Doctor Wallet Address</label>
+                        <input type="text" value={doctorAddr} onChange={e => setDoctorAddr(e.target.value)} placeholder="0x..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+                    </div>
+                    {records.length > 0 && (
+                        <div>
+                            <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Select Records</label>
+                            <div className="max-h-32 overflow-y-auto space-y-1">
+                                {records.map(r => (
+                                    <label key={r.recordId} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted cursor-pointer text-xs text-foreground">
+                                        <input type="checkbox" checked={selectedRecords.includes(r.recordId)} onChange={() => toggleRecord(r.recordId)} className="accent-secondary" />
+                                        #{r.recordId} — {r.recordType || 'Medical Record'}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <div>
+                        <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Duration</label>
+                        <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-secondary/40">
+                            <option value={3600}>1 Hour</option>
+                            <option value={86400}>24 Hours</option>
+                            <option value={604800}>7 Days</option>
+                            <option value={2592000}>30 Days</option>
+                            <option value={15552000}>180 Days</option>
+                        </select>
+                    </div>
+                    {error && <p className="text-xs text-red-400 bg-red-950/30 px-3 py-2 rounded-lg">{error}</p>}
+                    <button onClick={handleGrant} disabled={!doctorAddr.trim() || selectedRecords.length === 0 || loading} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
+                        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Granting…</> : 'Grant Access'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /* ─── Main Dashboard ────────────────────────────────────── */
 export default function PatientDashboard() {
     const account = useActiveAccount();
+    const { user, logout } = useAuth();
     const [activeNav, setActiveNav] = useState('records');
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [grants, setGrants] = useState(ACCESS_GRANTS);
     const [isDark, setIsDark] = useState(true);
+
+    // Live data state
+    const [records, setRecords] = useState([]);
+    const [loadingRecords, setLoadingRecords] = useState(true);
+    const [errorMsg, setErrorMsg] = useState('');
+    const [grantModalOpen, setGrantModalOpen] = useState(false);
+
+    // Fetch vault records on mount
+    const fetchRecords = useCallback(async () => {
+        setLoadingRecords(true);
+        setErrorMsg('');
+        try {
+            const res = await getPatientVault();
+            setRecords(res.data || []);
+        } catch (err) {
+            setErrorMsg(err.message || 'Failed to load records');
+        } finally {
+            setLoadingRecords(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+    // Derived data
+    const totalRecords = records.length;
+    const verifiedRecords = records.filter(r => !r.superseded).length;
+    const chartData = FALLBACK_CHART_DATA.map(m => ({ ...m })); // clone
+    // Populate chart from real data (if records have dates, we'd parse them; for now just count)
+
+    const recentRecords = records.slice(0, 4).map((r, i) => ({
+        id: r.recordId,
+        type: r.recordType || 'Medical Record',
+        icon: RECORD_ICONS[r.recordType] || Activity,
+        status: r.superseded ? 'Superseded' : 'Active',
+    }));
+
+    const displayName = user?.name || 'Patient';
+
+    const handleLogout = () => {
+        logout();
+        window.location.href = '/';
+    };
 
     return (
         <div className="flex h-screen overflow-hidden font-body bg-background">
 
             {/* Sidebar — desktop */}
             <div className="hidden lg:flex">
-                <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} />
+                <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} />
             </div>
 
             {/* Sidebar — mobile overlay */}
@@ -281,7 +386,7 @@ export default function PatientDashboard() {
                 <>
                     <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
                     <div className="fixed inset-y-0 left-0 z-50 lg:hidden">
-                        <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} />
+                        <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} />
                     </div>
                 </>
             )}
@@ -298,7 +403,7 @@ export default function PatientDashboard() {
                         </button>
                         <div>
                             <h1 className="text-[15px] font-semibold leading-tight text-foreground">
-                                Welcome back, Sarah{account ? ' 👋' : ''}
+                                Welcome back, {displayName} 👋
                             </h1>
                             <p className="text-[11px] hidden sm:block text-muted-foreground">
                                 Monitor and manage your health records today.
@@ -307,11 +412,10 @@ export default function PatientDashboard() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {/* Date + Export */}
                         <div className="hidden md:flex items-center gap-2">
                             <div className="flex items-center gap-1.5 border border-border rounded-xl px-3 py-[7px] text-[11px] text-muted-foreground">
                                 <Calendar className="w-3.5 h-3.5" />
-                                <span>Thu, 03 Apr 2026</span>
+                                <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
                             </div>
                             <button className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-[7px] rounded-xl bg-gray-100 text-gray-900 transition-opacity hover:opacity-85">
                                 <Download className="w-3.5 h-3.5" />
@@ -319,7 +423,6 @@ export default function PatientDashboard() {
                             </button>
                         </div>
 
-                        {/* Search */}
                         <div className="hidden lg:flex items-center gap-2 border border-border rounded-xl px-3 py-[7px] text-[11px] w-48 bg-card text-muted-foreground focus-within:bg-muted focus-within:ring-2 focus-within:ring-secondary/40 transition-colors cursor-text">
                             <Search className="w-3.5 h-3.5 shrink-0" />
                             <input type="text" placeholder="Search" className="flex-1 bg-transparent border-none outline-none text-foreground min-w-0" />
@@ -332,7 +435,6 @@ export default function PatientDashboard() {
                             </button>
                         ))}
 
-                        {/* Bell */}
                         <div className="relative">
                             <button className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
                                 <Bell className="w-4 h-4" />
@@ -344,13 +446,21 @@ export default function PatientDashboard() {
 
                         <div className="w-8 h-8 rounded-full flex items-center justify-center text-background text-[11px] font-bold shrink-0"
                             style={{ background: 'linear-gradient(135deg, #D2E75F, #c2d44e)' }}>
-                            S
+                            {displayName.charAt(0).toUpperCase()}
                         </div>
                     </div>
                 </header>
 
                 {/* Scrollable content */}
                 <main className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 lg:py-5 space-y-4">
+
+                    {/* Error banner */}
+                    {errorMsg && (
+                        <div className="bg-red-950/30 border border-red-900/50 text-red-300 text-xs p-3 rounded-xl">
+                            {errorMsg}
+                            <button onClick={fetchRecords} className="ml-2 underline">Retry</button>
+                        </div>
+                    )}
 
                     {/* ════ ROW 1 ════ */}
                     <div className="flex flex-col lg:flex-row gap-4">
@@ -359,7 +469,6 @@ export default function PatientDashboard() {
                         <div className="w-full lg:w-[42%] shrink-0">
                             <MagicCard className="h-full" gradientColor='hsl(var(--muted))'>
                                 <CardContent className="p-5">
-                                    {/* Header */}
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2">
                                             <IconBadge icon={FileText} />
@@ -371,16 +480,18 @@ export default function PatientDashboard() {
                                         </Badge>
                                     </div>
 
-                                    {/* Big number */}
                                     <div className="mb-1 text-foreground flex items-center h-12">
-                                        <NumberTicker value={24} className="text-[2.6rem] font-bold tracking-tight leading-none" />
+                                        {loadingRecords ? (
+                                            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                                        ) : (
+                                            <NumberTicker value={totalRecords} className="text-[2.6rem] font-bold tracking-tight leading-none" />
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1.5 mb-5">
-                                        <span className="text-[11px] font-semibold text-secondary">↑ +3.2%</span>
-                                        <span className="text-[11px] text-muted-foreground">from last month</span>
+                                        <span className="text-[11px] font-semibold text-secondary">On-chain</span>
+                                        <span className="text-[11px] text-muted-foreground">verified records</span>
                                     </div>
 
-                                    {/* Action buttons */}
                                     <div className="flex gap-2 mb-5">
                                         <ShimmerButton className="flex-1 py-[10px] rounded-xl active:scale-[0.98] shadow-md border-none flex"
                                             background='hsl(var(--accent))' shimmerColor="#FFD6E8">
@@ -389,13 +500,16 @@ export default function PatientDashboard() {
                                                 Upload Record
                                             </span>
                                         </ShimmerButton>
-                                        <Button variant="outline" className="flex-1 flex items-center justify-center gap-1.5 h-auto py-[10px] rounded-xl text-[12px] font-semibold text-secondary border-secondary/40 hover:bg-secondary/10">
+                                        <Button
+                                            onClick={() => setGrantModalOpen(true)}
+                                            variant="outline"
+                                            className="flex-1 flex items-center justify-center gap-1.5 h-auto py-[10px] rounded-xl text-[12px] font-semibold text-secondary border-secondary/40 hover:bg-secondary/10"
+                                        >
                                             <ShieldCheck className="w-3.5 h-3.5" />
                                             Grant Access
                                         </Button>
                                     </div>
 
-                                    {/* Recent Records */}
                                     <div className="flex items-center justify-between mb-3">
                                         <span className="text-[12px] font-semibold text-muted-foreground">Recent Records</span>
                                         <button className="flex items-center gap-0.5 text-[11px] font-medium text-secondary">
@@ -404,25 +518,31 @@ export default function PatientDashboard() {
                                     </div>
 
                                     <div className="space-y-1">
-                                        {RECENT_RECORDS.map(r => {
-                                            const Icon = r.icon;
-                                            const active = r.status === 'Active';
-                                            return (
-                                                <div key={r.id}
-                                                    className="flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors cursor-default hover:bg-secondary/5">
-                                                    <IconBadge icon={Icon} />
-                                                    <span className="flex-1 text-[12px] font-medium truncate text-foreground">
-                                                        {r.type}
-                                                    </span>
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-secondary' : 'bg-gray-600'}`} />
-                                                        <span className={`text-[11px] font-medium ${active ? 'text-secondary' : 'text-muted-foreground'}`}>
-                                                            {r.status}
+                                        {loadingRecords ? (
+                                            <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                                        ) : recentRecords.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground text-center py-4">No records yet</p>
+                                        ) : (
+                                            recentRecords.map(r => {
+                                                const Icon = r.icon;
+                                                const active = r.status === 'Active';
+                                                return (
+                                                    <div key={r.id}
+                                                        className="flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors cursor-default hover:bg-secondary/5">
+                                                        <IconBadge icon={Icon} />
+                                                        <span className="flex-1 text-[12px] font-medium truncate text-foreground">
+                                                            {r.type}
                                                         </span>
+                                                        <div className="flex items-center gap-1.5 shrink-0">
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-secondary' : 'bg-gray-600'}`} />
+                                                            <span className={`text-[11px] font-medium ${active ? 'text-secondary' : 'text-muted-foreground'}`}>
+                                                                {r.status}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })
+                                        )}
                                     </div>
                                 </CardContent>
                             </MagicCard>
@@ -445,11 +565,14 @@ export default function PatientDashboard() {
                                             </button>
                                         </div>
                                         <div className="mb-1 text-foreground flex items-center h-9">
-                                            <NumberTicker value={21} className="text-[2rem] font-bold tracking-tight leading-none" />
+                                            {loadingRecords ? (
+                                                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                            ) : (
+                                                <NumberTicker value={verifiedRecords} className="text-[2rem] font-bold tracking-tight leading-none" />
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <span className="text-[11px] font-semibold text-red-400">↓ -2.1%</span>
-                                            <span className="text-[11px] text-muted-foreground">from last month</span>
+                                            <span className="text-[11px] text-muted-foreground">of {totalRecords} total</span>
                                         </div>
                                     </CardContent>
                                 </MagicCard>
@@ -467,11 +590,10 @@ export default function PatientDashboard() {
                                             </button>
                                         </div>
                                         <div className="mb-1 text-foreground flex items-center h-9">
-                                            <NumberTicker value={3} className="text-[2rem] font-bold tracking-tight leading-none" />
+                                            <NumberTicker value={0} className="text-[2rem] font-bold tracking-tight leading-none" />
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <span className="text-[11px] font-semibold text-secondary">↑ +4.5%</span>
-                                            <span className="text-[11px] text-muted-foreground">from last month</span>
+                                            <span className="text-[11px] text-muted-foreground">active grants</span>
                                         </div>
                                     </CardContent>
                                 </MagicCard>
@@ -497,7 +619,7 @@ export default function PatientDashboard() {
                                     </div>
                                     <div className="flex-1 min-h-0 relative">
                                         <div className="absolute inset-0">
-                                            <BarChart />
+                                            <BarChart chartData={chartData} />
                                         </div>
                                     </div>
                                 </CardContent>
@@ -517,31 +639,9 @@ export default function PatientDashboard() {
                                 </button>
                             </CardHeader>
                             <CardContent className="p-5 pt-5 space-y-5">
-                                {grants.map(doc => (
-                                    <div key={doc.id} className="space-y-2.5">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-background text-[10px] font-bold shrink-0"
-                                                style={{ background: 'linear-gradient(135deg, #D2E75F, #c2d44e)' }}>
-                                                {doc.avatar}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[12px] font-semibold truncate text-foreground">{doc.name}</p>
-                                                <p className="text-[10px] truncate text-muted-foreground">{doc.specialty}</p>
-                                            </div>
-                                            <div className="shrink-0 flex flex-col items-end">
-                                                <span className="text-[11px] font-semibold text-muted-foreground">{doc.label}</span>
-                                                <span className="text-[10px] text-muted-foreground">{doc.progress}% elapsed</span>
-                                            </div>
-                                        </div>
-                                        {/* Progress bar */}
-                                        <div className="h-1.5 w-full rounded-full overflow-hidden bg-muted">
-                                            <div className="h-full rounded-full bg-secondary transition-all duration-500"
-                                                style={{ width: `${doc.progress}%` }} />
-                                        </div>
-                                    </div>
-                                ))}
+                                <p className="text-xs text-muted-foreground">Grant access to doctors to share your records securely.</p>
 
-                                <div className="flex items-center gap-3 pt-1">
+                                <div className="flex items-center gap-3 pt-1 cursor-pointer" onClick={() => setGrantModalOpen(true)}>
                                     <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-dashed border-border shrink-0">
                                         <Plus className="w-3.5 h-3.5 text-muted-foreground" />
                                     </div>
@@ -563,7 +663,7 @@ export default function PatientDashboard() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="border-border hover:bg-transparent">
-                                            {['Activity', 'Date', 'Doctor', 'Status'].map((h, i) => (
+                                            {['Activity', 'Record ID', 'Type', 'Status'].map((h, i) => (
                                                 <TableHead key={h} className={`h-10 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground ${i === 3 ? 'text-right pr-5' : 'pl-5'}`}>
                                                     {h}
                                                 </TableHead>
@@ -571,39 +671,44 @@ export default function PatientDashboard() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {AUDIT_LOG.map((row) => {
-                                            const Icon = row.icon;
-                                            const verified = row.status !== 'Pending';
-                                            return (
-                                                <TableRow key={row.id} className="group border-b-0 hover:bg-secondary/5 transition-colors">
-                                                    <TableCell className="py-3 pl-5">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-secondary/10">
-                                                                <Icon className="w-3.5 h-3.5 text-secondary" />
+                                        {loadingRecords ? (
+                                            <TableRow><TableCell colSpan={4} className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></TableCell></TableRow>
+                                        ) : records.length === 0 ? (
+                                            <TableRow><TableCell colSpan={4} className="text-center py-8 text-xs text-muted-foreground">No records found</TableCell></TableRow>
+                                        ) : (
+                                            records.slice(0, 5).map((row) => {
+                                                const verified = !row.superseded;
+                                                return (
+                                                    <TableRow key={row.recordId} className="group border-b-0 hover:bg-secondary/5 transition-colors">
+                                                        <TableCell className="py-3 pl-5">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-secondary/10">
+                                                                    <Activity className="w-3.5 h-3.5 text-secondary" />
+                                                                </div>
+                                                                <span className="text-[12px] font-medium whitespace-nowrap text-foreground">
+                                                                    Record Minted
+                                                                </span>
                                                             </div>
-                                                            <span className="text-[12px] font-medium whitespace-nowrap text-foreground">
-                                                                {row.type}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="py-3">
-                                                        <span className="text-[11px] whitespace-nowrap text-muted-foreground">{row.date}</span>
-                                                    </TableCell>
-                                                    <TableCell className="py-3">
-                                                        <span className="text-[11px] whitespace-nowrap text-muted-foreground">{row.doctor}</span>
-                                                    </TableCell>
-                                                    <TableCell className="py-3 pr-5 text-right">
-                                                        <Badge variant="outline" className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border-none ${verified
-                                                            ? 'bg-secondary/10 text-secondary'
-                                                            : 'bg-amber-900/30 text-amber-400'
-                                                            }`}>
-                                                            {verified && <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-secondary" />}
-                                                            {row.status}
-                                                        </Badge>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
+                                                        </TableCell>
+                                                        <TableCell className="py-3">
+                                                            <span className="text-[11px] whitespace-nowrap text-muted-foreground font-mono">#{row.recordId}</span>
+                                                        </TableCell>
+                                                        <TableCell className="py-3">
+                                                            <span className="text-[11px] whitespace-nowrap text-muted-foreground">{row.recordType || 'Medical Record'}</span>
+                                                        </TableCell>
+                                                        <TableCell className="py-3 pr-5 text-right">
+                                                            <Badge variant="outline" className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border-none ${verified
+                                                                ? 'bg-secondary/10 text-secondary'
+                                                                : 'bg-amber-900/30 text-amber-400'
+                                                                }`}>
+                                                                {verified && <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-secondary" />}
+                                                                {verified ? 'Verified' : 'Superseded'}
+                                                            </Badge>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
+                                        )}
                                     </TableBody>
                                 </Table>
                             </CardContent>
@@ -613,6 +718,16 @@ export default function PatientDashboard() {
                     <div className="h-4" />
                 </main>
             </div>
+
+            {/* Grant Access Modal */}
+            <GrantAccessModal
+                open={grantModalOpen}
+                onClose={(success) => {
+                    setGrantModalOpen(false);
+                    if (success) fetchRecords(); // Refresh after granting
+                }}
+                records={records}
+            />
         </div>
     );
 }

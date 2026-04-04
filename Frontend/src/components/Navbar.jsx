@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ArrowUpRight } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 import { createThirdwebClient } from "thirdweb";
-import { ConnectButton } from "thirdweb/react";
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const navLinks = [
   { label: 'About', href: '#about' },
@@ -31,12 +33,44 @@ const wallets = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { login, isAuthenticated, user } = useAuth();
+  const account = useActiveAccount();
+  const navigate = useNavigate();
+  const [hasTriedLogin, setHasTriedLogin] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // When a wallet connects AND we haven't authenticated yet, trigger backend auth
+  useEffect(() => {
+    if (account && !isAuthenticated && !hasTriedLogin) {
+      setHasTriedLogin(true);
+      login(account, client)
+        .then((result) => {
+          if (result && result.role && result.role !== 'UNREGISTERED') {
+            const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
+            navigate(roleRoutes[result.role] || '/');
+          }
+          // If UNREGISTERED, the RegisterModal will appear via AuthContext
+        })
+        .catch((err) => {
+          console.error('Backend auth failed:', err);
+          setHasTriedLogin(false);
+        });
+    }
+  }, [account, isAuthenticated, hasTriedLogin, login, navigate]);
+
+  // If user completes registration, redirect them
+  useEffect(() => {
+    if (isAuthenticated && user?.role && user.role !== 'UNREGISTERED') {
+      const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
+      const target = roleRoutes[user.role];
+      if (target) navigate(target);
+    }
+  }, [isAuthenticated, user?.role, navigate]);
 
   return (
     <>

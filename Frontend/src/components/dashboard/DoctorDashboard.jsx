@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
 import {
     LayoutDashboard, Users, Clock, Settings, LogOut,
     Stethoscope, Activity, Search, Plus, Calendar,
     Menu, HelpCircle, Mail, Filter, CheckCircle2, ShieldCheck,
     Upload, AlertTriangle, FileSignature, FileUp, ShieldAlert,
-    ChevronsLeft, ClipboardList, Hospital, Bell, Download
+    ChevronsLeft, ClipboardList, Hospital, Bell, Download, Loader2, X
 } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 
@@ -22,29 +22,13 @@ import { FloatingCube } from '../effects/FloatingCube';
 import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 
-/* ─── Mock Data ─────────────────────────────────────────── */
-const WAITING_ROOM = [
-    { id: 1, name: 'Michael R.', time: '10:15 AM', status: 'Wallet Verified', avatar: 'MR' },
-    { id: 2, name: 'Elena G.', time: '10:32 AM', status: 'Wallet Verified', avatar: 'EG' },
-    { id: 3, name: 'David K.', time: '10:45 AM', status: 'Pending Scan', avatar: 'DK' },
-];
-
-const GRANTED_RECORDS = [
-    { id: 1, type: 'Blood Panel', patient: 'Sarah J.', date: '02 Apr 2026', access: 'Web3 Verified Access', icon: Activity },
-    { id: 2, type: 'MRI Scan', patient: 'James T.', date: '01 Apr 2026', access: 'Web3 Verified Access', icon: Hospital },
-    { id: 3, type: 'Vaccination History', patient: 'Elena G.', date: '28 Mar 2026', access: 'Web3 Verified Access', icon: ShieldCheck },
-];
-
-const RECENT_MINTED_RECORDS = [
-    { id: 1, type: 'Cardiology Report', patient: 'Michael R.', status: 'Valid', hash: '0x3aF...9d1e', icon: Activity },
-    { id: 2, type: 'Prescription', patient: 'David K.', status: 'Valid', hash: '0x8bC...2f4a', icon: FileSignature },
-    { id: 3, type: 'Allergy Test', patient: 'Sarah J.', status: 'Error', hash: '0x1eA...4c5b', icon: AlertTriangle },
-];
+import { useAuth } from '../../context/AuthContext';
+import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord } from '../../services/api';
 
 const NAV = {
     main: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-        { id: 'waiting', label: 'Waiting Room', icon: Clock, badge: 2 },
+        { id: 'waiting', label: 'Waiting Room', icon: Clock, badge: null },
         { id: 'patients', label: 'Patients', icon: Users },
         { id: 'appointments', label: 'Appointments', icon: Calendar },
     ],
@@ -59,8 +43,9 @@ const NAV = {
 };
 
 /* ─── Sidebar nav item ──────────────────────────────────── */
-function NavItem({ item, active, onClick }) {
+function NavItem({ item, active, onClick, badgeOverride }) {
     const Icon = item.icon;
+    const badgeVal = badgeOverride != null ? badgeOverride : item.badge;
     return (
         <button
             onClick={onClick}
@@ -72,13 +57,13 @@ function NavItem({ item, active, onClick }) {
         >
             <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-secondary' : 'text-muted-foreground'}`} />
             <span className="flex-1">{item.label}</span>
-            {item.badge != null && (
+            {badgeVal != null && (
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
                     ${active
                         ? 'bg-secondary/20 text-secondary'
                         : 'bg-muted text-muted-foreground'
                     }`}>
-                    {item.badge}
+                    {badgeVal}
                 </span>
             )}
         </button>
@@ -86,7 +71,7 @@ function NavItem({ item, active, onClick }) {
 }
 
 /* ─── Sidebar ───────────────────────────────────────────── */
-function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
+function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout, waitingCount }) {
     return (
         <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
             <div className="flex items-center justify-between px-5 py-[18px] border-b border-border">
@@ -104,8 +89,12 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
                     <ul className="space-y-0.5">
                         {NAV.main.map(item => (
                             <li key={item.id}>
-                                <NavItem item={item} active={activeNav === item.id}
-                                    onClick={() => { setActiveNav(item.id); setMobileOpen(false); }} />
+                                <NavItem
+                                    item={item}
+                                    active={activeNav === item.id}
+                                    badgeOverride={item.id === 'waiting' ? waitingCount : undefined}
+                                    onClick={() => { setActiveNav(item.id); setMobileOpen(false); }}
+                                />
                             </li>
                         ))}
                     </ul>
@@ -133,7 +122,9 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen }) {
                             const Icon = item.icon;
                             return (
                                 <li key={item.id}>
-                                    <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
+                                    <button
+                                        onClick={item.id === 'logout' ? onLogout : undefined}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
                                         ${item.id === 'logout'
                                             ? 'text-muted-foreground hover:bg-red-950/30 hover:text-red-400'
                                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -162,22 +153,64 @@ function IconBadge({ icon: Icon, colorClass = "text-secondary", bgClass = "bg-se
 /* ─── Main Dashboard ────────────────────────────────────── */
 export default function DoctorDashboard() {
     const account = useActiveAccount();
+    const { user, logout } = useAuth();
     const [activeNav, setActiveNav] = useState('overview');
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [isDark, setIsDark] = useState(true);
+
+    // Live data states
+    const [waitingRoom, setWaitingRoom] = useState([]);
+    const [grantedRecords, setGrantedRecords] = useState([]);
+    const [mintedRecords, setMintedRecords] = useState([]);
+    const [loadingWaiting, setLoadingWaiting] = useState(true);
+    const [errorMsg, setErrorMsg] = useState('');
+
+    const displayName = user?.name || 'Doctor';
+
+    // Fetch waiting room on mount
+    const fetchWaitingRoom = useCallback(async () => {
+        setLoadingWaiting(true);
+        setErrorMsg('');
+        try {
+            const res = await getWaitingRoom();
+            setWaitingRoom(res.data || []);
+        } catch (err) {
+            console.error('Failed to load waiting room:', err);
+            setErrorMsg(err.message || 'Failed to load waiting room');
+            // Use fallback empty array
+            setWaitingRoom([]);
+        } finally {
+            setLoadingWaiting(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchWaitingRoom(); }, [fetchWaitingRoom]);
+
+    const handleCompleteAppointment = async (checkInId) => {
+        try {
+            await completeAppointment(checkInId);
+            fetchWaitingRoom(); // Refresh
+        } catch (err) {
+            setErrorMsg(err.message || 'Failed to complete appointment');
+        }
+    };
+
+    const handleLogout = () => {
+        logout();
+        window.location.href = '/';
+    };
 
     return (
         <div className="flex h-screen overflow-hidden font-body bg-background">
             {/* Sidebar */}
             <div className="hidden lg:flex">
-                <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} />
+                <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} waitingCount={waitingRoom.length || null} />
             </div>
 
             {mobileOpen && (
                 <>
                     <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
                     <div className="fixed inset-y-0 left-0 z-50 lg:hidden">
-                        <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} />
+                        <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} waitingCount={waitingRoom.length || null} />
                     </div>
                 </>
             )}
@@ -194,7 +227,7 @@ export default function DoctorDashboard() {
                         </button>
                         <div>
                             <h1 className="text-[15px] font-semibold leading-tight text-foreground">
-                                Welcome, Dr. Smith{account ? ' 👋' : ''}
+                                Welcome, Dr. {displayName} 👋
                             </h1>
                             <p className="text-[11px] hidden sm:block text-muted-foreground">
                                 Clinic Dashboard & Patient Hub
@@ -207,7 +240,7 @@ export default function DoctorDashboard() {
                         <div className="hidden md:flex items-center gap-2">
                             <div className="flex items-center gap-1.5 border border-border rounded-xl px-3 py-[7px] text-[11px] text-muted-foreground">
                                 <Calendar className="w-3.5 h-3.5" />
-                                <span>Thu, 03 Apr 2026</span>
+                                <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
                             </div>
                             <button className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-[7px] rounded-xl bg-gray-100 text-gray-900 transition-opacity hover:opacity-85">
                                 <Download className="w-3.5 h-3.5" />
@@ -239,7 +272,7 @@ export default function DoctorDashboard() {
                         <AnimatedThemeToggler />
                         
                         <div className="w-8 h-8 rounded-full flex items-center justify-center text-background text-[11px] font-bold shrink-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #D2E75F, #c2d44e)' }}>
-                            DS
+                            {displayName.charAt(0).toUpperCase()}
                         </div>
                     </div>
                 </header>
@@ -253,6 +286,14 @@ export default function DoctorDashboard() {
                     }}
                     className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 lg:py-5 space-y-4 relative z-10"
                 >
+                    {/* Error banner */}
+                    {errorMsg && (
+                        <div className="bg-red-950/30 border border-red-900/50 text-red-300 text-xs p-3 rounded-xl flex items-center justify-between">
+                            <span>{errorMsg}</span>
+                            <button onClick={fetchWaitingRoom} className="underline ml-2">Retry</button>
+                        </div>
+                    )}
+
                     {/* Row 1 */}
                     <div className="flex flex-col lg:flex-row gap-4">
                         {/* Waiting Room QR Check-in */}
@@ -272,26 +313,37 @@ export default function DoctorDashboard() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            {WAITING_ROOM.map(p => {
-                                                const isVerified = p.status === 'Wallet Verified';
-                                                return (
-                                                    <motion.div variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } }} key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background/80">
-                                                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm" style={ isVerified ? { background: 'linear-gradient(135deg, #D2E75F, #c2d44e)', color: 'hsl(var(--background))' } : { background: 'hsl(var(--muted))', color: '#888' }}>
-                                                            {p.avatar}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[12px] font-semibold truncate text-foreground">{p.name}</p>
-                                                            <p className="text-[10px] truncate text-muted-foreground">Arrived at {p.time}</p>
-                                                        </div>
-                                                        <div className="shrink-0">
-                                                            <Badge variant="outline" className={`text-[10px] border-none shadow-sm ${isVerified ? 'bg-secondary/10 text-secondary' : 'bg-muted text-muted-foreground'}`}>
-                                                                {isVerified && <ShieldCheck className="w-3 h-3 mr-1" />}
-                                                                {p.status}
-                                                            </Badge>
-                                                        </div>
-                                                    </motion.div>
-                                                );
-                                            })}
+                                            {loadingWaiting ? (
+                                                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                                            ) : waitingRoom.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground text-center py-8">No patients waiting</p>
+                                            ) : (
+                                                waitingRoom.map(p => {
+                                                    const isVerified = p.status === 'WAITING';
+                                                    const initials = (p.patientName || p.patientAddress || 'PA').slice(0, 2).toUpperCase();
+                                                    return (
+                                                        <motion.div variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } }} key={p.id || p.patientAddress} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background/80">
+                                                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm" style={isVerified ? { background: 'linear-gradient(135deg, #D2E75F, #c2d44e)', color: 'hsl(var(--background))' } : { background: 'hsl(var(--muted))', color: '#888' }}>
+                                                                {initials}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-[12px] font-semibold truncate text-foreground">{p.patientName || `${p.patientAddress?.slice(0,6)}…${p.patientAddress?.slice(-4)}`}</p>
+                                                                <p className="text-[10px] truncate text-muted-foreground">Checked in {p.checkInTime ? new Date(p.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}</p>
+                                                            </div>
+                                                            <div className="shrink-0 flex items-center gap-2">
+                                                                <Badge variant="outline" className={`text-[10px] border-none shadow-sm ${isVerified ? 'bg-secondary/10 text-secondary' : 'bg-muted text-muted-foreground'}`}>
+                                                                    {isVerified && <ShieldCheck className="w-3 h-3 mr-1" />}
+                                                                    {p.status || 'Waiting'}
+                                                                </Badge>
+                                                                <Button size="sm" variant="outline" className="h-6 text-[9px] px-2"
+                                                                    onClick={() => handleCompleteAppointment(p.id)}>
+                                                                    Complete
+                                                                </Button>
+                                                            </div>
+                                                        </motion.div>
+                                                    );
+                                                })
+                                            )}
                                         </div>
                                         <Button variant="ghost" className="w-full mt-3 text-[11px] h-8 text-muted-foreground hover:bg-muted">View All Patients</Button>
                                     </div>
@@ -312,22 +364,25 @@ export default function DoctorDashboard() {
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1">
-                                            {GRANTED_RECORDS.map(r => {
-                                                const Icon = r.icon;
-                                                return (
-                                                    <div key={r.id} className="p-4 rounded-xl border border-border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 bg-background cursor-pointer shadow-sm group">
+                                            {grantedRecords.length === 0 ? (
+                                                <div className="col-span-2 flex items-center justify-center py-8">
+                                                    <p className="text-xs text-muted-foreground">No granted records. Patients must share access with you.</p>
+                                                </div>
+                                            ) : (
+                                                grantedRecords.slice(0, 4).map(r => (
+                                                    <div key={r.recordId || r.id} className="p-4 rounded-xl border border-border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 bg-background cursor-pointer shadow-sm group">
                                                         <div className="flex items-start justify-between mb-3 relative z-10">
-                                                            <IconBadge icon={Icon} bgClass="bg-secondary/15" colorClass="text-secondary" />
+                                                            <IconBadge icon={Activity} bgClass="bg-secondary/15" colorClass="text-secondary" />
                                                             <Badge className="bg-secondary/10 text-secondary hover:bg-secondary/20 text-[9px] border-none">
                                                                 Granted
                                                             </Badge>
                                                         </div>
-                                                        <h3 className="text-[13px] font-bold text-foreground mb-1 relative z-10">{r.type}</h3>
-                                                        <p className="text-[11px] text-muted-foreground mb-2 relative z-10">Patient: {r.patient}</p>
-                                                        <p className="text-[10px] text-secondary font-medium relative z-10">Valid until {r.date}</p>
+                                                        <h3 className="text-[13px] font-bold text-foreground mb-1 relative z-10">{r.recordType || 'Medical Record'}</h3>
+                                                        <p className="text-[11px] text-muted-foreground mb-2 relative z-10">Patient: {r.patientAddress ? `${r.patientAddress.slice(0,6)}…${r.patientAddress.slice(-4)}` : 'Unknown'}</p>
+                                                        <p className="text-[10px] text-secondary font-medium relative z-10">Record #{r.recordId}</p>
                                                     </div>
-                                                )
-                                            })}
+                                                ))
+                                            )}
                                         </div>
                                     </div>
                                 </GlassCard>
@@ -356,7 +411,7 @@ export default function DoctorDashboard() {
                                             <FloatingCube className="w-[100px] h-[100px] absolute -top-8 -right-6 opacity-80 z-0 hidden sm:block pointer-events-none mix-blend-plus-lighter" />
                                         </div>
                                         
-                                            <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center bg-background/50 text-center transition-all duration-300 hover:bg-accent/5 hover:border-accent/50 cursor-pointer relative z-10 flex-1 hover:scale-[1.01] hover:shadow-[0_0_20px_#FF99CC33] group">
+                                        <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center bg-background/50 text-center transition-all duration-300 hover:bg-accent/5 hover:border-accent/50 cursor-pointer relative z-10 flex-1 hover:scale-[1.01] hover:shadow-[0_0_20px_#FF99CC33] group">
                                             <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3 group-hover:bg-accent/20 transition-colors">
                                                 <Upload className="w-5 h-5 text-accent group-hover:-translate-y-1 transition-transform" />
                                             </div>
@@ -387,37 +442,34 @@ export default function DoctorDashboard() {
                                         </div>
                                         
                                         <div className="space-y-3">
-                                            {RECENT_MINTED_RECORDS.map(r => {
-                                                const isError = r.status === 'Error';
-                                                const Icon = r.icon;
-                                                return (
-                                                    <div key={r.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-background/80 shadow-sm transition-all duration-300 hover:-translate-x-1">
-                                                         <div className="flex items-center gap-3">
-                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isError ? 'bg-red-900/30' : 'bg-muted'}`}>
-                                                                <Icon className={`w-4 h-4 ${isError ? 'text-red-500' : 'text-muted-foreground'}`} />
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[12px] font-semibold text-foreground">{r.type}</p>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[10px] text-muted-foreground">To: {r.patient}</span>
-                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{r.hash}</span>
+                                            {mintedRecords.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground text-center py-6">No minted records yet. Use the upload panel to create one.</p>
+                                            ) : (
+                                                mintedRecords.slice(0, 3).map(r => {
+                                                    const isError = r.status === 'Error';
+                                                    return (
+                                                        <div key={r.recordId || r.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-background/80 shadow-sm transition-all duration-300 hover:-translate-x-1">
+                                                             <div className="flex items-center gap-3">
+                                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isError ? 'bg-red-900/30' : 'bg-muted'}`}>
+                                                                    <Activity className={`w-4 h-4 ${isError ? 'text-red-500' : 'text-muted-foreground'}`} />
                                                                 </div>
-                                                            </div>
-                                                         </div>
-                                                         <div>
-                                                             {isError ? (
-                                                                <Button size="sm" className="h-7 text-[10px] bg-accent/15 text-accent hover:bg-accent/25 border border-accent/50 shadow-[0_0_12px_#FF99CC40] hover:shadow-[0_0_20px_#FF99CC60] rounded-lg font-bold transition-all px-3">
-                                                                    Amend Record
-                                                                </Button>
-                                                             ) : (
+                                                                <div>
+                                                                    <p className="text-[12px] font-semibold text-foreground">{r.recordType || 'Medical Record'}</p>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-muted-foreground">To: {r.patientAddress ? `${r.patientAddress.slice(0,6)}…${r.patientAddress.slice(-4)}` : 'Unknown'}</span>
+                                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">#{r.recordId}</span>
+                                                                    </div>
+                                                                </div>
+                                                             </div>
+                                                             <div>
                                                                 <Badge variant="outline" className="text-[10px] bg-secondary/10 text-secondary border-secondary/20 shadow-sm">
                                                                     Immutable
                                                                 </Badge>
-                                                             )}
-                                                         </div>
-                                                    </div>
-                                                )
-                                            })}
+                                                             </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
                                         </div>
                                         <div className="mt-4 flex items-start gap-2 bg-amber-950/30 border border-amber-900/50 p-3 rounded-xl shadow-sm">
                                             <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />

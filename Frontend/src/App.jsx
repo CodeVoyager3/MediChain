@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { MissionSection } from './components/MissionSection';
@@ -15,6 +15,9 @@ import { FooterSection } from './components/SiteFooter';
 import PatientDashboard from './components/dashboard/PatientDashboard'
 import DoctorDashboard from './components/dashboard/DoctorDashboard'
 import InsurerDashboard from './components/dashboard/InsurerDashboard'
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import RegisterModal from './components/RegisterModal';
 
 function LandingPage() {
   return (
@@ -53,11 +56,33 @@ function AppContent() {
   return (
     <>
       {isLandingPage && <Navbar />}
+      <RegisterModal />
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/patient" element={<PatientDashboard />} />
-        <Route path="/doctor" element={<DoctorDashboard />} />
-        <Route path="/insurer" element={<InsurerDashboard />} />
+        <Route
+          path="/patient"
+          element={
+            <ProtectedRoute requiredRole="PATIENT">
+              <PatientDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/doctor"
+          element={
+            <ProtectedRoute requiredRole="DOCTOR">
+              <DoctorDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/insurer"
+          element={
+            <ProtectedRoute requiredRole="INSURER">
+              <InsurerDashboard />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </>
   );
@@ -66,7 +91,9 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
