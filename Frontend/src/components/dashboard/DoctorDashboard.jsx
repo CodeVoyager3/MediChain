@@ -185,6 +185,15 @@ export default function DoctorDashboard() {
 
     const displayName = user?.name || 'Doctor';
 
+    // Transaction state
+    const tx = useTransaction();
+    const [patientAddr, setPatientAddr] = useState('');
+    const [recordType, setRecordType] = useState('Medical Record');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = React.useRef(null);
+    const [isAmendMode, setIsAmendMode] = useState(false);
+    const [amendTargetId, setAmendTargetId] = useState(null);
+
     // Fetch waiting room on mount
     const fetchWaitingRoom = useCallback(async () => {
         setLoadingWaiting(true);
@@ -692,6 +701,14 @@ export default function DoctorDashboard() {
                     <div className="h-4" />
                 </motion.main>
             </div>
+
+            <TransactionModal 
+                state={tx.txState} 
+                onClose={tx.reset} 
+                title={tx.txTitle} 
+                txHash={tx.txHash} 
+                error={tx.txError} 
+            />
         </div>
     );
 }

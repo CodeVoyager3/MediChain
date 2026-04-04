@@ -254,8 +254,8 @@ function GrantAccessModal({ open, onClose, records }) {
     const [doctorAddr, setDoctorAddr] = useState('');
     const [selectedRecords, setSelectedRecords] = useState([]);
     const [duration, setDuration] = useState(86400); // 24h default
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const tx = useTransaction();
 
     if (!open) return null;
 
@@ -267,7 +267,7 @@ function GrantAccessModal({ open, onClose, records }) {
 
     const handleGrant = async () => {
         if (!doctorAddr.trim() || selectedRecords.length === 0) return;
-        setLoading(true);
+        tx.startTransaction('Granting Access…');
         setError('');
         try {
             await grantAccess(doctorAddr.trim(), selectedRecords, duration);
@@ -285,9 +285,10 @@ function GrantAccessModal({ open, onClose, records }) {
                 },
             });
         } catch (err) {
+            tx.setFailed(err);
             setError(err.message || 'Failed to grant access');
         } finally {
-            setLoading(false);
+            // modal stays open until success
         }
     };
 
@@ -327,9 +328,16 @@ function GrantAccessModal({ open, onClose, records }) {
                         </select>
                     </div>
                     {error && <p className="text-xs text-red-400 bg-red-950/30 px-3 py-2 rounded-lg">{error}</p>}
-                    <button onClick={handleGrant} disabled={!doctorAddr.trim() || selectedRecords.length === 0 || loading} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
-                        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Granting…</> : 'Grant Access'}
+                    <button onClick={handleGrant} disabled={!doctorAddr.trim() || selectedRecords.length === 0} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
+                        Grant Access
                     </button>
+                    <TransactionModal 
+                        state={tx.txState} 
+                        onClose={tx.reset} 
+                        title={tx.txTitle} 
+                        txHash={tx.txHash} 
+                        error={tx.txError} 
+                    />
                 </div>
             </div>
         </div>
@@ -373,6 +381,32 @@ export default function PatientDashboard() {
     }, []);
 
     useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+    const fetchGrants = useCallback(async () => {
+        setLoadingGrants(true);
+        try {
+            const res = await getActiveGrants();
+            setActiveGrants(res.data || []);
+        } catch (err) {
+            console.error('Failed to load active grants:', err);
+            setActiveGrants([]);
+        } finally {
+            setLoadingGrants(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchGrants(); }, [fetchGrants]);
+
+    const handleRevoke = async (doctorAddress, recordId) => {
+        tx.startTransaction('Revoking Access…');
+        try {
+            await revokeAccess(doctorAddress, recordId);
+            tx.setConfirmed();
+            fetchGrants(); // Refresh
+        } catch (err) {
+            tx.setFailed(err);
+        }
+    };
 
     // Derived data
     const totalRecords = records.length;
@@ -861,6 +895,14 @@ export default function PatientDashboard() {
                     }
                 }}
                 records={records}
+            />
+
+            <TransactionModal 
+                state={tx.txState} 
+                onClose={tx.reset} 
+                title={tx.txTitle} 
+                txHash={tx.txHash} 
+                error={tx.txError} 
             />
         </div>
     );

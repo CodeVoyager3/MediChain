@@ -84,6 +84,11 @@ export function checkInToClinic(doctorAddress) {
   return request('POST', '/api/v1/dashboard/patient/check-in', { doctorAddress });
 }
 
+/** Fetch all active data grants the patient has issued */
+export function getActiveGrants() {
+  return request('GET', '/api/v1/blockchain/active-grants');
+}
+
 // ─── Dashboard — Doctor ─────────────────────────────────
 
 /** Fetch all patients currently in the doctor's waiting room */
@@ -103,9 +108,29 @@ export function completeAppointment(checkInId) {
 
 // ─── Blockchain ─────────────────────────────────────────
 
+/** Helper to upload a file to the backend (which then pins to IPFS) */
+export async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/api/v1/doctor/upload`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: formData
+  });
+
+  if (!res.ok) throw new Error('File upload failed');
+  return res.json(); // returns { cid, filename }
+}
+
 /** Mint a new medical record NFT (doctor action) */
-export function mintRecord(patientAddress, cid) {
-  return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid });
+export function mintRecord(patientAddress, cid, recordType = 'Medical Record', supersedes = null) {
+  return request('POST', '/api/v1/blockchain/mint', { 
+    patientAddress, 
+    cid, 
+    recordType,
+    supersedes 
+  });
 }
 
 /** Amend (supersede) an existing record by minting a corrected version linked to the old one */
