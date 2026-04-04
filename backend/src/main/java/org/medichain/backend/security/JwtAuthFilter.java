@@ -19,6 +19,13 @@ import java.util.Collections;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 	
+	private final AuthService authService;
+	
+	// Inject AuthService into the filter
+	public JwtAuthFilter(AuthService authService) {
+		this.authService = authService;
+	}
+	
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
@@ -34,7 +41,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 			String token = authHeader.substring(7); // Remove "Bearer "
 			
 			Claims claims = Jwts.parserBuilder()
-					.setSigningKey(AuthService.jwtSecretKey)
+					.setSigningKey(authService.getSigningKey())
 					.build()
 					.parseClaimsJws(token)
 					.getBody();

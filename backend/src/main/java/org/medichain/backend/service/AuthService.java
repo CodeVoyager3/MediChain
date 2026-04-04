@@ -1,11 +1,10 @@
 package org.medichain.backend.service;
 
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.medichain.backend.entity.User;
 import org.medichain.backend.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Hash;
 import org.web3j.crypto.Sign;
@@ -24,11 +23,18 @@ public class AuthService {
 	
 	private final UserRepository userRepository;
 	
-	public static final Key jwtSecretKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
 	private final long JWT_EXPIRATION_MS = 86400000; // 24 hours
 	
 	public AuthService(UserRepository userRepository) {
 		this.userRepository = userRepository;
+	}
+	@Value("${jwt.secret}")
+	private String jwtSecretString;
+	
+	// Helper method to convert the String from properties into a Cryptographic Key
+	public Key getSigningKey() {
+		byte[] keyBytes = io.jsonwebtoken.io.Decoders.BASE64.decode(jwtSecretString);
+		return io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
 	}
 	
 	// Step 1 of Login: Generate a challenge for the user to sign
@@ -89,7 +95,7 @@ public class AuthService {
 						.claim("role", user.getRole())
 						.setIssuedAt(new Date())
 						.setExpiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION_MS))
-						.signWith(jwtSecretKey)
+						.signWith(getSigningKey())
 						.compact();
 			} else {
 				throw new RuntimeException("Signature verification failed. Recovered address did not match.");
