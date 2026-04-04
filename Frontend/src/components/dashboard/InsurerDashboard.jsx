@@ -252,30 +252,41 @@ export default function InsuranceDashboard() {
 
             const res = await viewRecordAsInsurer(insurerAddress, walletAddress, recordId);
 
-            // Map the API response to our UI format
+            // Unwrap the backend's "data" envelope
+            // Backend returns: { status, message, data: { accessGranted, recordData, securityChecks, auditTrail } }
+            const payload = res.data || {};
+
+            // Map the API response to our UI format using ACTUAL backend field names
             const result = {
-                signature: res.securityChecks?.validDoctorSignature ?? true,
-                hashMatch: res.securityChecks?.hashMatch ?? true,
-                notSuperseded: res.securityChecks?.notSuperseded ?? true,
+                signature: payload.securityChecks?.authenticityVerified ?? false,
+                hashMatch: payload.securityChecks?.integrityVerified ?? false,
+                notSuperseded: !(payload.recordData?.isSuperseded ?? false),
             };
 
             setVerificationResult(result);
 
             // Populate audit trail from response
-            if (res.auditTrail && res.auditTrail.length > 0) {
-                setAuditTrail(res.auditTrail.map((entry, i) => ({
-                    id: `v${res.auditTrail.length - i}`,
-                    version: i === 0 ? `V${res.auditTrail.length - i} (Current)` : `V${res.auditTrail.length - i} (Superseded)`,
-                    date: entry.date || new Date().toLocaleDateString(),
-                    hash: entry.hash || '0x0000…',
-                    doctor: entry.doctor || 'Unknown',
-                    status: i === 0 ? 'Active' : 'Superseded',
-                    note: entry.note || '',
-                })));
+            // Backend returns List<MedicalRecord> entities with fields:
+            // recordId, patientAddress, doctorAddress, ipfsCid, recordType, superseded, previousRecordId, txHash
+            const trail = payload.auditTrail || [];
+            if (trail.length > 0) {
+                setAuditTrail(trail.map((entry, i) => {
+                    const docAddr = entry.doctorAddress || '';
+                    return {
+                        id: `v${trail.length - i}`,
+                        version: i === 0 ? `V${trail.length - i} (Current)` : `V${trail.length - i} (Superseded)`,
+                        date: entry.recordType || 'Medical Record',
+                        hash: entry.txHash || '0x0000…',
+                        doctor: docAddr ? `${docAddr.slice(0, 6)}…${docAddr.slice(-4)}` : 'Unknown',
+                        status: i === 0 ? 'Active' : 'Superseded',
+                        note: entry.superseded ? `Superseded → Record #${entry.previousRecordId || '?'}` : `Record #${entry.recordId} · CID: ${(entry.ipfsCid || '').slice(0, 12)}…`,
+                    };
+                }));
             }
 
             // Append to history
             const allPassed = result.signature && result.hashMatch && result.notSuperseded;
+            const issuingDoctor = payload.recordData?.issuingDoctor || '';
             setVerificationHistory(prev => [
                 {
                     id: Date.now(),
@@ -283,7 +294,7 @@ export default function InsuranceDashboard() {
                     tokenId: `#${recordId}`,
                     status: allPassed ? 'Verified' : result.notSuperseded ? 'Hash Mismatch' : 'Superseded',
                     date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                    doctor: res.doctorAddress ? `${res.doctorAddress.slice(0, 6)}…` : 'N/A',
+                    doctor: issuingDoctor ? `${issuingDoctor.slice(0, 6)}…` : 'N/A',
                 },
                 ...prev,
             ]);

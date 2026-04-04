@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
+import { createThirdwebClient } from "thirdweb";
+import { upload } from "thirdweb/storage";
+
+const client = createThirdwebClient({
+    clientId: import.meta.env.VITE_CLIENT_ID,
+});
+
 import {
     LayoutDashboard, Users, Clock, Settings, LogOut,
     Stethoscope, Activity, Search, Plus, Calendar,
@@ -23,7 +30,7 @@ import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 
 import { useAuth } from '../../context/AuthContext';
-import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord } from '../../services/api';
+import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, amendRecord } from '../../services/api';
 
 const NAV = {
     main: [
@@ -162,7 +169,19 @@ export default function DoctorDashboard() {
     const [grantedRecords, setGrantedRecords] = useState([]);
     const [mintedRecords, setMintedRecords] = useState([]);
     const [loadingWaiting, setLoadingWaiting] = useState(true);
+    const [loadingRecords, setLoadingRecords] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [selectedPatient, setSelectedPatient] = useState(null);
+    
+    // IPFS Upload states
+    const [fileToMint, setFileToMint] = useState(null);
+    const [patientAddressToMint, setPatientAddressToMint] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
+
+    // Amend states
+    const [amendingRecordId, setAmendingRecordId] = useState(null);
+    const [amendFile, setAmendFile] = useState(null);
+    const [isAmending, setIsAmending] = useState(false);
 
     const displayName = user?.name || 'Doctor';
 
@@ -185,6 +204,14 @@ export default function DoctorDashboard() {
 
     useEffect(() => { fetchWaitingRoom(); }, [fetchWaitingRoom]);
 
+    // Poll waiting room every 10 seconds for live updates
+    useEffect(() => {
+        const interval = setInterval(() => {
+            getWaitingRoom().then(res => setWaitingRoom(res.data || [])).catch(() => {});
+        }, 10000);
+        return () => clearInterval(interval);
+    }, []);
+
     const handleCompleteAppointment = async (checkInId) => {
         try {
             await completeAppointment(checkInId);
@@ -194,9 +221,116 @@ export default function DoctorDashboard() {
         }
     };
 
+    // Fetch accessible records when a patient is selected
+    const handleSelectPatient = async (patientAddress) => {
+        setSelectedPatient(patientAddress);
+        setLoadingRecords(true);
+        setGrantedRecords([]);
+        try {
+            const res = await getAccessibleRecords(patientAddress);
+            // Backend returns List<AccessGrant> with: id, patientAddress, viewerAddress, recordId, expiresAt
+            setGrantedRecords(res.data || []);
+        } catch (err) {
+            console.error('Failed to load accessible records:', err);
+            setGrantedRecords([]);
+        } finally {
+            setLoadingRecords(false);
+        }
+    };
+
     const handleLogout = () => {
         logout();
         window.location.href = '/';
+    };
+
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            setFileToMint(e.target.files[0]);
+        }
+    };
+
+    const handleUploadAndMint = async () => {
+        if (!fileToMint || !patientAddressToMint) {
+            setErrorMsg("Please select a file and enter a patient wallet address.");
+            return;
+        }
+
+        setIsUploading(true);
+        setErrorMsg('');
+
+        try {
+            // 1. Upload to IPFS using thirdweb
+            const uri = await upload({
+                client,
+                files: [fileToMint],
+            });
+
+            // 2. Mint the record on backend (backend calls blockchain)
+            await mintRecord(patientAddressToMint, uri);
+            
+            // Success reset
+            setFileToMint(null);
+            setPatientAddressToMint('');
+            
+            // Quick local state update to simulate view
+            setMintedRecords(prev => [{
+                id: Date.now(),
+                recordId: 'New',
+                recordType: fileToMint.name,
+                patientAddress: patientAddressToMint,
+                status: 'Minted'
+            }, ...prev]);
+
+            alert("Record minted successfully!");
+        } catch (err) {
+            console.error("Mint error:", err);
+            setErrorMsg(err.message || 'Failed to mint record');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleAmendRecord = async (record) => {
+        if (!amendFile) {
+            setErrorMsg('Please select a corrected file to upload.');
+            return;
+        }
+        setIsAmending(true);
+        setErrorMsg('');
+        try {
+            // 1. Upload corrected file to IPFS
+            const uri = await upload({ client, files: [amendFile] });
+
+            // 2. Call amend endpoint (same as mint but with previousRecordId)
+            await amendRecord(record.patientAddress, uri, record.recordId);
+
+            // 3. Mark old record as superseded in local state
+            setMintedRecords(prev => prev.map(r =>
+                (r.recordId === record.recordId || r.id === record.id)
+                    ? { ...r, status: 'Superseded', superseded: true }
+                    : r
+            ));
+
+            // 4. Add the new amended record
+            setMintedRecords(prev => [{
+                id: Date.now(),
+                recordId: 'New',
+                recordType: `Amended: ${amendFile.name}`,
+                patientAddress: record.patientAddress,
+                status: 'Minted',
+                previousRecordId: record.recordId,
+            }, ...prev]);
+
+            // Reset
+            setAmendingRecordId(null);
+            setAmendFile(null);
+            alert('Record amended successfully! Old version is now superseded.');
+        } catch (err) {
+            console.error('Amend error:', err);
+            setErrorMsg(err.message || 'Failed to amend record');
+        } finally {
+            setIsAmending(false);
+        }
     };
 
     return (
@@ -320,14 +454,19 @@ export default function DoctorDashboard() {
                                             ) : (
                                                 waitingRoom.map(p => {
                                                     const isVerified = p.status === 'WAITING';
-                                                    const initials = (p.patientName || p.patientAddress || 'PA').slice(0, 2).toUpperCase();
+                                                    const addrShort = p.patientAddress ? `${p.patientAddress.slice(0, 6)}…${p.patientAddress.slice(-4)}` : 'Unknown';
+                                                    const initials = p.patientAddress ? p.patientAddress.slice(-2).toUpperCase() : 'PA';
+                                                    const isSelected = selectedPatient === p.patientAddress;
                                                     return (
-                                                        <motion.div variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } }} key={p.id || p.patientAddress} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background/80">
+                                                        <motion.div variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } }} key={p.id || p.patientAddress} 
+                                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${isSelected ? 'border-secondary bg-secondary/5' : 'border-border bg-background/80 hover:bg-secondary/5'}`}
+                                                            onClick={() => handleSelectPatient(p.patientAddress)}
+                                                        >
                                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm" style={isVerified ? { background: 'linear-gradient(135deg, #D2E75F, #c2d44e)', color: 'hsl(var(--background))' } : { background: 'hsl(var(--muted))', color: '#888' }}>
                                                                 {initials}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-[12px] font-semibold truncate text-foreground">{p.patientName || `${p.patientAddress?.slice(0,6)}…${p.patientAddress?.slice(-4)}`}</p>
+                                                                <p className="text-[12px] font-semibold truncate text-foreground">{addrShort}</p>
                                                                 <p className="text-[10px] truncate text-muted-foreground">Checked in {p.checkInTime ? new Date(p.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}</p>
                                                             </div>
                                                             <div className="shrink-0 flex items-center gap-2">
@@ -336,7 +475,7 @@ export default function DoctorDashboard() {
                                                                     {p.status || 'Waiting'}
                                                                 </Badge>
                                                                 <Button size="sm" variant="outline" className="h-6 text-[9px] px-2"
-                                                                    onClick={() => handleCompleteAppointment(p.id)}>
+                                                                    onClick={(e) => { e.stopPropagation(); handleCompleteAppointment(p.id); }}>
                                                                     Complete
                                                                 </Button>
                                                             </div>
@@ -364,22 +503,28 @@ export default function DoctorDashboard() {
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1">
-                                            {grantedRecords.length === 0 ? (
+                                            {!selectedPatient ? (
                                                 <div className="col-span-2 flex items-center justify-center py-8">
-                                                    <p className="text-xs text-muted-foreground">No granted records. Patients must share access with you.</p>
+                                                    <p className="text-xs text-muted-foreground">Select a patient from the waiting room to view their granted records.</p>
+                                                </div>
+                                            ) : loadingRecords ? (
+                                                <div className="col-span-2 flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                                            ) : grantedRecords.length === 0 ? (
+                                                <div className="col-span-2 flex items-center justify-center py-8">
+                                                    <p className="text-xs text-muted-foreground">This patient has not granted you access to any records yet.</p>
                                                 </div>
                                             ) : (
-                                                grantedRecords.slice(0, 4).map(r => (
-                                                    <div key={r.recordId || r.id} className="p-4 rounded-xl border border-border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 bg-background cursor-pointer shadow-sm group">
+                                                grantedRecords.slice(0, 4).map(grant => (
+                                                    <div key={grant.id || grant.recordId} className="p-4 rounded-xl border border-border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 bg-background cursor-pointer shadow-sm group">
                                                         <div className="flex items-start justify-between mb-3 relative z-10">
                                                             <IconBadge icon={Activity} bgClass="bg-secondary/15" colorClass="text-secondary" />
                                                             <Badge className="bg-secondary/10 text-secondary hover:bg-secondary/20 text-[9px] border-none">
                                                                 Granted
                                                             </Badge>
                                                         </div>
-                                                        <h3 className="text-[13px] font-bold text-foreground mb-1 relative z-10">{r.recordType || 'Medical Record'}</h3>
-                                                        <p className="text-[11px] text-muted-foreground mb-2 relative z-10">Patient: {r.patientAddress ? `${r.patientAddress.slice(0,6)}…${r.patientAddress.slice(-4)}` : 'Unknown'}</p>
-                                                        <p className="text-[10px] text-secondary font-medium relative z-10">Record #{r.recordId}</p>
+                                                        <h3 className="text-[13px] font-bold text-foreground mb-1 relative z-10">Record #{grant.recordId}</h3>
+                                                        <p className="text-[11px] text-muted-foreground mb-2 relative z-10">Patient: {grant.patientAddress ? `${grant.patientAddress.slice(0,6)}…${grant.patientAddress.slice(-4)}` : 'Unknown'}</p>
+                                                        <p className="text-[10px] text-secondary font-medium relative z-10">Expires: {grant.expiresAt ? new Date(grant.expiresAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}</p>
                                                     </div>
                                                 ))
                                             )}
@@ -411,18 +556,40 @@ export default function DoctorDashboard() {
                                             <FloatingCube className="w-[100px] h-[100px] absolute -top-8 -right-6 opacity-80 z-0 hidden sm:block pointer-events-none mix-blend-plus-lighter" />
                                         </div>
                                         
-                                        <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center bg-background/50 text-center transition-all duration-300 hover:bg-accent/5 hover:border-accent/50 cursor-pointer relative z-10 flex-1 hover:scale-[1.01] hover:shadow-[0_0_20px_#FF99CC33] group">
-                                            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3 group-hover:bg-accent/20 transition-colors">
-                                                <Upload className="w-5 h-5 text-accent group-hover:-translate-y-1 transition-transform" />
+                                        <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center bg-background/50 text-center transition-all duration-300 relative z-10 flex-1">
+                                            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3">
+                                                <Upload className="w-5 h-5 text-accent" />
                                             </div>
-                                            <h3 className="text-[13px] font-semibold text-foreground mb-1">Drag and drop file to mint</h3>
+                                            <h3 className="text-[13px] font-semibold text-foreground mb-1">Upload file to mint</h3>
                                             <p className="text-[11px] text-muted-foreground mb-4 max-w-[200px]">Securely mint a new medical record to a patient's Web3 wallet.</p>
                                             
-                                            <ShimmerButton className="py-3 px-8 rounded-xl text-[13px] font-semibold shadow-[0_0_20px_#FF99CC80] border-none flex" background='hsl(var(--accent))' shimmerColor="#FFFFFF">
-                                                <span className="flex items-center gap-1.5 text-background font-bold">
-                                                    Select File
-                                                </span>
-                                            </ShimmerButton>
+                                            <div className="w-full max-w-[280px] flex flex-col gap-3">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Patient Wallet Address (0x...)" 
+                                                    value={patientAddressToMint}
+                                                    onChange={(e) => setPatientAddressToMint(e.target.value)}
+                                                    className="w-full text-[11px] px-3 py-2 border border-border bg-background rounded-lg focus:outline-none focus:ring-1 focus:ring-accent"
+                                                />
+                                                <input 
+                                                    type="file" 
+                                                    accept=".pdf,.png,.jpg,.jpeg,.dcm" 
+                                                    onChange={handleFileChange}
+                                                    className="w-full text-[11px] block file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-semibold file:bg-muted file:text-foreground hover:file:bg-border cursor-pointer text-muted-foreground"
+                                                />
+                                                <ShimmerButton 
+                                                    onClick={handleUploadAndMint}
+                                                    disabled={isUploading || !fileToMint || !patientAddressToMint}
+                                                    className={`py-3 px-8 rounded-xl text-[13px] font-semibold border-none flex mt-2 shadow-[0_0_20px_#FF99CC80] ${(!fileToMint || !patientAddressToMint || isUploading) ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                                                    background='hsl(var(--accent))' 
+                                                    shimmerColor="#FFFFFF"
+                                                >
+                                                    <span className="flex items-center gap-1.5 text-background font-bold">
+                                                        {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                                        {isUploading ? 'Minting...' : 'Mint Record'}
+                                                    </span>
+                                                </ShimmerButton>
+                                            </div>
                                         </div>
                                     </div>
                                 </GlassCard>
@@ -445,27 +612,65 @@ export default function DoctorDashboard() {
                                             {mintedRecords.length === 0 ? (
                                                 <p className="text-xs text-muted-foreground text-center py-6">No minted records yet. Use the upload panel to create one.</p>
                                             ) : (
-                                                mintedRecords.slice(0, 3).map(r => {
+                                                mintedRecords.slice(0, 5).map(r => {
                                                     const isError = r.status === 'Error';
+                                                    const isSuperseded = r.status === 'Superseded' || r.superseded;
+                                                    const isAmendTarget = amendingRecordId === (r.recordId || r.id);
                                                     return (
-                                                        <div key={r.recordId || r.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-background/80 shadow-sm transition-all duration-300 hover:-translate-x-1">
-                                                             <div className="flex items-center gap-3">
-                                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isError ? 'bg-red-900/30' : 'bg-muted'}`}>
-                                                                    <Activity className={`w-4 h-4 ${isError ? 'text-red-500' : 'text-muted-foreground'}`} />
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[12px] font-semibold text-foreground">{r.recordType || 'Medical Record'}</p>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-muted-foreground">To: {r.patientAddress ? `${r.patientAddress.slice(0,6)}…${r.patientAddress.slice(-4)}` : 'Unknown'}</span>
-                                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">#{r.recordId}</span>
+                                                        <div key={r.recordId || r.id} className={`p-3 rounded-xl border shadow-sm transition-all duration-300 ${isSuperseded ? 'border-amber-900/50 bg-amber-950/10 opacity-70' : 'border-border bg-background/80 hover:-translate-x-1'}`}>
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isError ? 'bg-red-900/30' : isSuperseded ? 'bg-amber-900/30' : 'bg-muted'}`}>
+                                                                        <Activity className={`w-4 h-4 ${isError ? 'text-red-500' : isSuperseded ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[12px] font-semibold text-foreground">{r.recordType || 'Medical Record'}</p>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-[10px] text-muted-foreground">To: {r.patientAddress ? `${r.patientAddress.slice(0,6)}…${r.patientAddress.slice(-4)}` : 'Unknown'}</span>
+                                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">#{r.recordId}</span>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                             </div>
-                                                             <div>
-                                                                <Badge variant="outline" className="text-[10px] bg-secondary/10 text-secondary border-secondary/20 shadow-sm">
-                                                                    Immutable
-                                                                </Badge>
-                                                             </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    {isSuperseded ? (
+                                                                        <Badge variant="outline" className="text-[10px] bg-amber-900/30 text-amber-400 border-amber-900/50 shadow-sm">
+                                                                            Superseded
+                                                                        </Badge>
+                                                                    ) : (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => setAmendingRecordId(isAmendTarget ? null : (r.recordId || r.id))}
+                                                                                className="text-[9px] font-semibold px-2 py-1 rounded-lg bg-amber-950/40 text-amber-400 hover:bg-amber-900/50 transition-colors"
+                                                                            >
+                                                                                {isAmendTarget ? 'Cancel' : 'Amend'}
+                                                                            </button>
+                                                                            <Badge variant="outline" className="text-[10px] bg-secondary/10 text-secondary border-secondary/20 shadow-sm">
+                                                                                Immutable
+                                                                            </Badge>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {/* Amend Panel */}
+                                                            {isAmendTarget && (
+                                                                <div className="mt-3 pt-3 border-t border-border space-y-2">
+                                                                    <p className="text-[10px] text-amber-400 font-semibold">Upload corrected file to supersede this record:</p>
+                                                                    <input
+                                                                        type="file"
+                                                                        accept=".pdf,.png,.jpg,.jpeg,.dcm"
+                                                                        onChange={e => setAmendFile(e.target.files?.[0] || null)}
+                                                                        className="w-full text-[10px] block file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[9px] file:font-semibold file:bg-muted file:text-foreground cursor-pointer text-muted-foreground"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => handleAmendRecord(r)}
+                                                                        disabled={!amendFile || isAmending}
+                                                                        className="w-full py-2 rounded-lg text-[11px] font-semibold bg-amber-500 text-background disabled:opacity-50 flex items-center justify-center gap-1.5"
+                                                                    >
+                                                                        {isAmending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSignature className="w-3.5 h-3.5" />}
+                                                                        {isAmending ? 'Amending…' : 'Amend & Supersede'}
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 })

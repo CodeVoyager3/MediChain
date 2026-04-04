@@ -5,6 +5,7 @@ import {
     Stethoscope, Activity, MoreHorizontal, Search, Plus, Calendar,
     Hospital, HeartPulse, Syringe, Menu, HelpCircle, Mail, Filter,
     CheckCircle2, ClipboardList, Download, Bot, ChevronsLeft, Upload, Loader2, X,
+    QrCode, Trash2, Clock,
 } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 
@@ -21,7 +22,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { Bar } from 'react-chartjs-2';
 
 import { useAuth } from '../../context/AuthContext';
-import { getPatientVault, grantAccess, revokeAccess } from '../../services/api';
+import { getPatientVault, grantAccess, revokeAccess, checkInToClinic } from '../../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -270,7 +271,19 @@ function GrantAccessModal({ open, onClose, records }) {
         setError('');
         try {
             await grantAccess(doctorAddr.trim(), selectedRecords, duration);
-            onClose(true); // success
+            // Track the grant locally for the revoke UI
+            const durationLabels = { 3600: '1 Hour', 86400: '24 Hours', 604800: '7 Days', 2592000: '30 Days', 15552000: '180 Days' };
+            onClose({
+                success: true,
+                grant: {
+                    id: Date.now(),
+                    doctorAddress: doctorAddr.trim(),
+                    recordIds: [...selectedRecords],
+                    durationInSeconds: duration,
+                    durationLabel: durationLabels[duration] || `${Math.round(duration / 3600)}h`,
+                    grantedAt: new Date().toISOString(),
+                },
+            });
         } catch (err) {
             setError(err.message || 'Failed to grant access');
         } finally {
@@ -337,6 +350,14 @@ export default function PatientDashboard() {
     const [errorMsg, setErrorMsg] = useState('');
     const [grantModalOpen, setGrantModalOpen] = useState(false);
 
+    // Check-in state
+    const [checkInDoctorAddr, setCheckInDoctorAddr] = useState('');
+    const [isCheckingIn, setIsCheckingIn] = useState(false);
+    const [checkInSuccess, setCheckInSuccess] = useState(false);
+
+    // Active grants tracking (session-based since no GET endpoint)
+    const [activeGrants, setActiveGrants] = useState([]);
+
     // Fetch vault records on mount
     const fetchRecords = useCallback(async () => {
         setLoadingRecords(true);
@@ -371,6 +392,37 @@ export default function PatientDashboard() {
     const handleLogout = () => {
         logout();
         window.location.href = '/';
+    };
+
+    // Check-in handler
+    const handleCheckIn = async () => {
+        if (!checkInDoctorAddr.trim()) return;
+        setIsCheckingIn(true);
+        setErrorMsg('');
+        try {
+            await checkInToClinic(checkInDoctorAddr.trim());
+            setCheckInSuccess(true);
+            setTimeout(() => setCheckInSuccess(false), 5000);
+        } catch (err) {
+            setErrorMsg(err.message || 'Failed to check in');
+        } finally {
+            setIsCheckingIn(false);
+        }
+    };
+
+    // Revoke handler
+    const handleRevoke = async (grant) => {
+        setErrorMsg('');
+        try {
+            // Revoke each record in the grant
+            for (const recId of grant.recordIds) {
+                await revokeAccess(grant.doctorAddress, recId);
+            }
+            // Remove from local tracking
+            setActiveGrants(prev => prev.filter(g => g.id !== grant.id));
+        } catch (err) {
+            setErrorMsg(err.message || 'Failed to revoke access');
+        }
     };
 
     return (
@@ -590,7 +642,7 @@ export default function PatientDashboard() {
                                             </button>
                                         </div>
                                         <div className="mb-1 text-foreground flex items-center h-9">
-                                            <NumberTicker value={0} className="text-[2rem] font-bold tracking-tight leading-none" />
+                                            <NumberTicker value={activeGrants.length} className="text-[2rem] font-bold tracking-tight leading-none" />
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-[11px] text-muted-foreground">active grants</span>
@@ -630,22 +682,97 @@ export default function PatientDashboard() {
                     {/* ════ ROW 2 ════ */}
                     <div className="flex flex-col lg:flex-row gap-4">
 
-                        {/* Access Control */}
+                        {/* Check-In + Access Control */}
                         <ShadcnCard className="w-full lg:w-[42%] shrink-0 border-border shadow-none bg-card">
-                            <CardHeader className="p-5 pb-0 items-center flex-row justify-between space-y-0">
-                                <CardTitle className="text-[13px] font-semibold text-foreground">Access Control</CardTitle>
-                                <button className="text-muted-foreground hover:text-muted-foreground">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                </button>
-                            </CardHeader>
-                            <CardContent className="p-5 pt-5 space-y-5">
-                                <p className="text-xs text-muted-foreground">Grant access to doctors to share your records securely.</p>
-
-                                <div className="flex items-center gap-3 pt-1 cursor-pointer" onClick={() => setGrantModalOpen(true)}>
-                                    <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-dashed border-border shrink-0">
-                                        <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                            <CardContent className="p-5 space-y-5">
+                                {/* Check-In to Clinic */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent/10">
+                                            <QrCode className="w-3.5 h-3.5 text-accent" />
+                                        </div>
+                                        <span className="text-[13px] font-semibold text-foreground">Check In to Clinic</span>
                                     </div>
-                                    <span className="text-[12px] text-muted-foreground">Grant new access</span>
+                                    <p className="text-[11px] text-muted-foreground mb-3">Enter your doctor's wallet address to check in (simulates QR scan).</p>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={checkInDoctorAddr}
+                                            onChange={e => setCheckInDoctorAddr(e.target.value)}
+                                            placeholder="Doctor Wallet (0x...)"
+                                            className="flex-1 px-3 py-2 rounded-xl border border-border bg-background text-[11px] text-foreground font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 min-w-0"
+                                        />
+                                        <button
+                                            onClick={handleCheckIn}
+                                            disabled={!checkInDoctorAddr.trim() || isCheckingIn}
+                                            className="px-4 py-2 rounded-xl text-[11px] font-semibold bg-accent text-background disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                                        >
+                                            {isCheckingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <QrCode className="w-3.5 h-3.5" />}
+                                            {isCheckingIn ? 'Checking in…' : 'Check In'}
+                                        </button>
+                                    </div>
+                                    {checkInSuccess && (
+                                        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-950/30 px-3 py-1.5 rounded-lg">
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                            Checked in successfully! You're in the doctor's waiting room.
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="border-t border-border" />
+
+                                {/* Access Control */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-secondary/10">
+                                                <ShieldCheck className="w-3.5 h-3.5 text-secondary" />
+                                            </div>
+                                            <span className="text-[13px] font-semibold text-foreground">Access Control</span>
+                                        </div>
+                                        {activeGrants.length > 0 && (
+                                            <Badge variant="outline" className="text-[10px] border-secondary/30 text-secondary">
+                                                {activeGrants.length} active
+                                            </Badge>
+                                        )}
+                                    </div>
+
+                                    {/* Active Grants List */}
+                                    <div className="space-y-2 mb-3">
+                                        {activeGrants.length === 0 ? (
+                                            <p className="text-[11px] text-muted-foreground">No active access grants. Grant access to let doctors view your records.</p>
+                                        ) : (
+                                            activeGrants.map(grant => (
+                                                <div key={grant.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border bg-background/60">
+                                                    <div className="min-w-0">
+                                                        <p className="text-[11px] font-semibold text-foreground font-mono truncate">
+                                                            {`${grant.doctorAddress.slice(0, 6)}…${grant.doctorAddress.slice(-4)}`}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[10px] text-muted-foreground">{grant.recordIds.length} record{grant.recordIds.length > 1 ? 's' : ''}</span>
+                                                            <span className="text-[10px] text-muted-foreground">·</span>
+                                                            <span className="text-[10px] text-secondary flex items-center gap-1"><Clock className="w-3 h-3" />{grant.durationLabel}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRevoke(grant)}
+                                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold text-red-400 bg-red-950/30 hover:bg-red-900/40 transition-colors shrink-0"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                        Revoke
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* Grant new access */}
+                                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => setGrantModalOpen(true)}>
+                                        <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-dashed border-border shrink-0">
+                                            <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                                        </div>
+                                        <span className="text-[12px] text-muted-foreground">Grant new access</span>
+                                    </div>
                                 </div>
                             </CardContent>
                         </ShadcnCard>
@@ -722,9 +849,16 @@ export default function PatientDashboard() {
             {/* Grant Access Modal */}
             <GrantAccessModal
                 open={grantModalOpen}
-                onClose={(success) => {
+                onClose={(result) => {
                     setGrantModalOpen(false);
-                    if (success) fetchRecords(); // Refresh after granting
+                    if (result?.success) {
+                        fetchRecords();
+                        if (result.grant) {
+                            setActiveGrants(prev => [result.grant, ...prev]);
+                            // Pre-fill check-in doctor address from the grant
+                            setCheckInDoctorAddr(result.grant.doctorAddress);
+                        }
+                    }
                 }}
                 records={records}
             />

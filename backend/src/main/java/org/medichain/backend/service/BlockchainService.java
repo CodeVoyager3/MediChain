@@ -75,7 +75,7 @@ public class BlockchainService {
 	}
 	
 	@Transactional
-	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid) {
+	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId) {
 		try {
 			String doctorAddress = getAuthenticatedWalletAddress();
 			log.info("Dr. {} is minting record for patient: {} with CID: {}", doctorAddress, patientWalletAddress, ipfsCid);
@@ -88,6 +88,15 @@ public class BlockchainService {
 			List<MedRecordNFT.RecordMintedEventResponse> events = smartContract.getRecordMintedEvents(receipt);
 			Long recordId = events.isEmpty() ? System.currentTimeMillis() : events.get(0).tokenId.longValue();
 			
+			// If amending, mark the old record as superseded
+			if (previousRecordId != null && previousRecordId > 0) {
+				medicalRecordRepository.findById(previousRecordId).ifPresent(oldRecord -> {
+					oldRecord.setSuperseded(true);
+					medicalRecordRepository.save(oldRecord);
+					log.info("Marked Record #{} as SUPERSEDED (amended by #{})", previousRecordId, recordId);
+				});
+			}
+			
 			//Cache the metadata in PostgreSQL
 			MedicalRecord record = new MedicalRecord();
 			record.setRecordId(recordId);
@@ -96,6 +105,7 @@ public class BlockchainService {
 			record.setIpfsCid(ipfsCid);
 			record.setRecordType("General Medical Record");
 			record.setSuperseded(false);
+			record.setPreviousRecordId(previousRecordId);
 			record.setTxHash(transactionHash);
 			
 			medicalRecordRepository.save(record);

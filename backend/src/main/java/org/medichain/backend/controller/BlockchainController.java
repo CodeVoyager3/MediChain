@@ -28,7 +28,7 @@ public class BlockchainController {
 	public ResponseEntity<?> mintRecord(@RequestBody MintRecordRequest request) {
 		try {
 			log.info("Received REST API request to MINT record.");
-			String txHash = blockchainService.mintMedicalRecord(request.getPatientAddress(), request.getCid());
+			String txHash = blockchainService.mintMedicalRecord(request.getPatientAddress(), request.getCid(), request.getPreviousRecordId());
 			return ResponseEntity.ok(Map.of(
 					"status", "success",
 					"transactionHash", txHash

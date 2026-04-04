@@ -29,7 +29,13 @@ async function request(method, path, body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`${API_BASE}${path}`, opts);
-  const data = await res.json();
+
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
 
   if (!res.ok) {
     const msg = data?.message || data?.error || `Request failed (${res.status})`;
@@ -100,6 +106,11 @@ export function completeAppointment(checkInId) {
 /** Mint a new medical record NFT (doctor action) */
 export function mintRecord(patientAddress, cid) {
   return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid });
+}
+
+/** Amend (supersede) an existing record by minting a corrected version linked to the old one */
+export function amendRecord(patientAddress, cid, previousRecordId) {
+  return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid, previousRecordId });
 }
 
 /** Patient grants temporary access to a doctor for specific records */
