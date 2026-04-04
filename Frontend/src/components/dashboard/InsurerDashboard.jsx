@@ -563,12 +563,12 @@ export default function InsuranceDashboard() {
 
                                         {!verificationResult && !isVerifying ? (
                                             <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-                                                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-                                                    <Eye className="w-7 h-7 text-muted-foreground" />
+                                                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4 text-muted-foreground/40">
+                                                    <Eye className="w-8 h-8" />
                                                 </div>
                                                 <p className="text-[13px] font-semibold text-muted-foreground mb-1">No claim verified yet</p>
                                                 <p className="text-[11px] text-muted-foreground max-w-[200px]">
-                                                    Submit a wallet address and token ID to begin verification.
+                                                    Submit a wallet address and token ID to begin the integrity check.
                                                 </p>
                                             </div>
                                         ) : isVerifying ? (
@@ -578,36 +578,43 @@ export default function InsuranceDashboard() {
                                                     transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                                                     className="w-16 h-16 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4"
                                                 >
-                                                    <Loader2 className="w-7 h-7 text-secondary" />
+                                                    <Loader2 className="w-8 h-8 text-secondary" />
                                                 </motion.div>
                                                 <p className="text-[13px] font-semibold text-secondary mb-1">Querying Blockchain…</p>
-                                                <p className="text-[11px] text-muted-foreground">Validating on-chain data & access grants</p>
+                                                <p className="text-[11px] text-muted-foreground">Validating on-chain data & cryptographic proof</p>
                                             </div>
                                         ) : (
-                                            <div className="space-y-3 flex-1">
-                                                <VerificationCheckRow
-                                                    icon={Fingerprint}
-                                                    label="Valid Doctor Signature"
-                                                    description="The minting wallet matches a registered doctor"
-                                                    verified={verificationResult.signature}
-                                                    delay={0.1}
-                                                />
-                                                <VerificationCheckRow
-                                                    icon={Hash}
-                                                    label="Hash Match"
-                                                    description="SHA-256 of record matches on-chain hash"
-                                                    verified={verificationResult.hashMatch}
-                                                    delay={0.3}
-                                                />
-                                                <VerificationCheckRow
-                                                    icon={ShieldCheck}
-                                                    label="Not Superseded"
-                                                    description="No newer amendment exists for this record"
-                                                    verified={verificationResult.notSuperseded}
-                                                    delay={0.5}
-                                                />
+                                            <div className="space-y-4 flex-1">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <h4 className="text-[11px] font-bold uppercase tracking-widest text-secondary">Integrity Triple-Check</h4>
+                                                    <Badge className="bg-secondary/10 text-secondary text-[9px] border-none italic">Secured by Polygon</Badge>
+                                                </div>
+                                                
+                                                <div className="space-y-3">
+                                                    <VerificationCheckRow
+                                                        icon={Fingerprint}
+                                                        label="1. Valid Doctor Signature"
+                                                        description="Minting wallet is a verified medical professional"
+                                                        verified={verificationResult.signature}
+                                                        delay={0.1}
+                                                    />
+                                                    <VerificationCheckRow
+                                                        icon={Hash}
+                                                        label="2. Document Hash Match"
+                                                        description="SHA-256 integrity check against ledger"
+                                                        verified={verificationResult.hashMatch}
+                                                        delay={0.3}
+                                                    />
+                                                    <VerificationCheckRow
+                                                        icon={ShieldCheck}
+                                                        label="3. Not Superseded"
+                                                        description="No active amendments or revocations found"
+                                                        verified={verificationResult.notSuperseded}
+                                                        delay={0.5}
+                                                    />
+                                                </div>
 
-                                                {/* Summary */}
+                                                {/* Summary Result Badge */}
                                                 <motion.div
                                                     initial={{ opacity: 0, scale: 0.95 }}
                                                     animate={{ opacity: 1, scale: 1 }}
@@ -630,7 +637,7 @@ export default function InsuranceDashboard() {
                                                             <>
                                                                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
                                                                 <p className="text-[12px] font-bold text-red-300">
-                                                                    Claim has Issues
+                                                                    Integrity Verification Failed
                                                                 </p>
                                                             </>
                                                         )}
@@ -642,7 +649,7 @@ export default function InsuranceDashboard() {
                                                     }`}>
                                                         {verificationResult.signature && verificationResult.hashMatch && verificationResult.notSuperseded
                                                             ? 'All blockchain integrity checks have passed. This record is safe to process for reimbursement.'
-                                                            : 'One or more integrity checks have failed. Please review the details above before processing.'}
+                                                            : 'One or more integrity checks have failed. Please review the details above before processing this claim.'}
                                                     </p>
                                                 </motion.div>
                                             </div>
@@ -680,26 +687,32 @@ export default function InsuranceDashboard() {
                                         </div>
 
                                         {auditTrail.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-8 text-center">
-                                                <Clock className="w-8 h-8 text-muted-foreground mb-2" />
-                                                <p className="text-xs text-muted-foreground">Verify a claim to view its audit trail</p>
+                                            <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-border rounded-2xl">
+                                                <Clock className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                                                <p className="text-[11px] text-muted-foreground">Verify a claim to view its blockchain audit trail</p>
                                             </div>
                                         ) : (
-                                            <div className="relative space-y-4">
+                                            <div className="relative space-y-6">
                                                 {auditTrail.length > 1 && (
-                                                    <div className="absolute left-[22px] top-[60px] bottom-[60px] w-px bg-gradient-to-b from-emerald-500 via-secondary to-gray-700" />
+                                                    <div className="absolute left-[22px] top-[40px] bottom-[40px] w-[2px] bg-gradient-to-b from-secondary via-secondary/40 to-muted" />
                                                 )}
 
                                                 {auditTrail.map((version, idx) => (
-                                                    <div key={version.id} className="relative flex gap-4">
-                                                        <div className="relative z-10 mt-4">
-                                                            <div className={`w-[12px] h-[12px] rounded-full mx-[11px] ${
+                                                    <div key={version.id} className="relative flex gap-6">
+                                                        <div className="relative z-10 mt-5">
+                                                            <div className={`w-[14px] h-[14px] rounded-full mx-[15px] border-4 ${
                                                                 idx === 0
-                                                                    ? 'bg-emerald-500 ring-4 ring-emerald-900/40'
-                                                                    : 'bg-gray-600 ring-4 ring-muted'
+                                                                    ? 'bg-emerald-500 border-emerald-900 shadow-[0_0_10px_#10b981]'
+                                                                    : 'bg-muted border-card'
                                                             }`} />
                                                         </div>
                                                         <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <ArrowRight className={`w-3 h-3 text-muted-foreground ${idx === 0 ? 'hidden' : ''}`} />
+                                                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                                                                    {idx === 0 ? 'Latest State' : `Superseded by V${auditTrail.length - idx + 1}`}
+                                                                </span>
+                                                            </div>
                                                             <AuditVersionCard version={version} isCurrent={idx === 0} />
                                                         </div>
                                                     </div>

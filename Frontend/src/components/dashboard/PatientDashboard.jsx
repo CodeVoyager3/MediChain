@@ -21,7 +21,9 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { Bar } from 'react-chartjs-2';
 
 import { useAuth } from '../../context/AuthContext';
-import { getPatientVault, grantAccess, revokeAccess } from '../../services/api';
+import { useTransaction } from '../../hooks/useTransaction';
+import { TransactionModal } from '../ui/transaction-modal';
+import { getPatientVault, grantAccess, revokeAccess, getActiveGrants } from '../../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -253,8 +255,8 @@ function GrantAccessModal({ open, onClose, records }) {
     const [doctorAddr, setDoctorAddr] = useState('');
     const [selectedRecords, setSelectedRecords] = useState([]);
     const [duration, setDuration] = useState(86400); // 24h default
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const tx = useTransaction();
 
     if (!open) return null;
 
@@ -266,15 +268,17 @@ function GrantAccessModal({ open, onClose, records }) {
 
     const handleGrant = async () => {
         if (!doctorAddr.trim() || selectedRecords.length === 0) return;
-        setLoading(true);
+        tx.startTransaction('Granting Access…');
         setError('');
         try {
             await grantAccess(doctorAddr.trim(), selectedRecords, duration);
+            tx.setConfirmed();
             onClose(true); // success
         } catch (err) {
+            tx.setFailed(err);
             setError(err.message || 'Failed to grant access');
         } finally {
-            setLoading(false);
+            // modal stays open until success
         }
     };
 
@@ -314,9 +318,16 @@ function GrantAccessModal({ open, onClose, records }) {
                         </select>
                     </div>
                     {error && <p className="text-xs text-red-400 bg-red-950/30 px-3 py-2 rounded-lg">{error}</p>}
-                    <button onClick={handleGrant} disabled={!doctorAddr.trim() || selectedRecords.length === 0 || loading} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
-                        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Granting…</> : 'Grant Access'}
+                    <button onClick={handleGrant} disabled={!doctorAddr.trim() || selectedRecords.length === 0} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
+                        Grant Access
                     </button>
+                    <TransactionModal 
+                        state={tx.txState} 
+                        onClose={tx.reset} 
+                        title={tx.txTitle} 
+                        txHash={tx.txHash} 
+                        error={tx.txError} 
+                    />
                 </div>
             </div>
         </div>
@@ -337,6 +348,10 @@ export default function PatientDashboard() {
     const [errorMsg, setErrorMsg] = useState('');
     const [grantModalOpen, setGrantModalOpen] = useState(false);
 
+    const [activeGrants, setActiveGrants] = useState([]);
+    const [loadingGrants, setLoadingGrants] = useState(true);
+    const tx = useTransaction();
+
     // Fetch vault records on mount
     const fetchRecords = useCallback(async () => {
         setLoadingRecords(true);
@@ -352,6 +367,32 @@ export default function PatientDashboard() {
     }, []);
 
     useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+    const fetchGrants = useCallback(async () => {
+        setLoadingGrants(true);
+        try {
+            const res = await getActiveGrants();
+            setActiveGrants(res.data || []);
+        } catch (err) {
+            console.error('Failed to load active grants:', err);
+            setActiveGrants([]);
+        } finally {
+            setLoadingGrants(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchGrants(); }, [fetchGrants]);
+
+    const handleRevoke = async (doctorAddress, recordId) => {
+        tx.startTransaction('Revoking Access…');
+        try {
+            await revokeAccess(doctorAddress, recordId);
+            tx.setConfirmed();
+            fetchGrants(); // Refresh
+        } catch (err) {
+            tx.setFailed(err);
+        }
+    };
 
     // Derived data
     const totalRecords = records.length;
@@ -590,7 +631,11 @@ export default function PatientDashboard() {
                                             </button>
                                         </div>
                                         <div className="mb-1 text-foreground flex items-center h-9">
-                                            <NumberTicker value={0} className="text-[2rem] font-bold tracking-tight leading-none" />
+                                            {loadingGrants ? (
+                                              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                            ) : (
+                                              <NumberTicker value={activeGrants.length} className="text-[2rem] font-bold tracking-tight leading-none" />
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-[11px] text-muted-foreground">active grants</span>
@@ -639,13 +684,42 @@ export default function PatientDashboard() {
                                 </button>
                             </CardHeader>
                             <CardContent className="p-5 pt-5 space-y-5">
-                                <p className="text-xs text-muted-foreground">Grant access to doctors to share your records securely.</p>
+                                <div className="flex-1 overflow-y-auto space-y-3 min-h-[140px]">
+                                    {loadingGrants ? (
+                                        <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                                    ) : activeGrants.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl">
+                                            <Plus className="w-5 h-5 text-muted-foreground mb-1" />
+                                            <p className="text-[11px] text-muted-foreground">No active record shares</p>
+                                        </div>
+                                    ) : (
+                                        activeGrants.map(grant => (
+                                            <div key={`${grant.doctorAddress}-${grant.recordId}`} className="flex items-center justify-between p-3 rounded-xl border border-border bg-background">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
+                                                        <Stethoscope className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[12px] font-semibold text-foreground">{short(grant.doctorAddress)}</p>
+                                                        <p className="text-[10px] text-muted-foreground">Record #{grant.recordId}</p>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleRevoke(grant.doctorAddress, grant.recordId)}
+                                                    className="px-2 py-1 rounded-md bg-red-950/30 text-red-500 text-[10px] font-bold hover:bg-red-900/40 transition-colors"
+                                                >
+                                                    Revoke
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
 
-                                <div className="flex items-center gap-3 pt-1 cursor-pointer" onClick={() => setGrantModalOpen(true)}>
-                                    <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-dashed border-border shrink-0">
-                                        <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                                <div className="flex items-center gap-3 pt-1 cursor-pointer group" onClick={() => setGrantModalOpen(true)}>
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-dashed border-border shrink-0 group-hover:border-secondary/50 group-hover:bg-secondary/5 transition-all">
+                                        <Plus className="w-3.5 h-3.5 text-muted-foreground group-hover:text-secondary" />
                                     </div>
-                                    <span className="text-[12px] text-muted-foreground">Grant new access</span>
+                                    <span className="text-[12px] text-muted-foreground group-hover:text-foreground">Grant new access</span>
                                 </div>
                             </CardContent>
                         </ShadcnCard>
@@ -727,6 +801,14 @@ export default function PatientDashboard() {
                     if (success) fetchRecords(); // Refresh after granting
                 }}
                 records={records}
+            />
+
+            <TransactionModal 
+                state={tx.txState} 
+                onClose={tx.reset} 
+                title={tx.txTitle} 
+                txHash={tx.txHash} 
+                error={tx.txError} 
             />
         </div>
     );

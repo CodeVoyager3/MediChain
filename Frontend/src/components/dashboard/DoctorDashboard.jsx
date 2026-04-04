@@ -23,7 +23,9 @@ import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 
 import { useAuth } from '../../context/AuthContext';
-import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord } from '../../services/api';
+import { useTransaction } from '../../hooks/useTransaction';
+import { TransactionModal } from '../ui/transaction-modal';
+import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, uploadFile } from '../../services/api';
 
 const NAV = {
     main: [
@@ -166,6 +168,15 @@ export default function DoctorDashboard() {
 
     const displayName = user?.name || 'Doctor';
 
+    // Transaction state
+    const tx = useTransaction();
+    const [patientAddr, setPatientAddr] = useState('');
+    const [recordType, setRecordType] = useState('Medical Record');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = React.useRef(null);
+    const [isAmendMode, setIsAmendMode] = useState(false);
+    const [amendTargetId, setAmendTargetId] = useState(null);
+
     // Fetch waiting room on mount
     const fetchWaitingRoom = useCallback(async () => {
         setLoadingWaiting(true);
@@ -192,6 +203,44 @@ export default function DoctorDashboard() {
         } catch (err) {
             setErrorMsg(err.message || 'Failed to complete appointment');
         }
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (file) setSelectedFile(file);
+    };
+
+    const handleMint = async () => {
+        if (!selectedFile || !patientAddr) {
+            setErrorMsg('File and Patient Address are required');
+            return;
+        }
+
+        tx.startTransaction(isAmendMode ? 'Amending Record…' : 'Minting Medical Record…');
+        try {
+            // Step 1: Upload to IPFS/Backend
+            const uploadRes = await uploadFile(selectedFile);
+            
+            // Step 2: Mint on Blockchain
+            tx.setPending('0x…'); // placeholder or real hash
+            await mintRecord(patientAddr, uploadRes.cid, recordType, amendTargetId);
+            
+            tx.setConfirmed();
+            setSelectedFile(null);
+            setPatientAddr('');
+            setIsAmendMode(false);
+            setAmendTargetId(null);
+        } catch (err) {
+            tx.setFailed(err);
+        }
+    };
+
+    const openAmendFlow = (record) => {
+        setIsAmendMode(true);
+        setAmendTargetId(record.recordId);
+        setPatientAddr(record.patientAddress);
+        setRecordType(record.recordType);
+        fileInputRef.current?.click();
     };
 
     const handleLogout = () => {
@@ -411,18 +460,63 @@ export default function DoctorDashboard() {
                                             <FloatingCube className="w-[100px] h-[100px] absolute -top-8 -right-6 opacity-80 z-0 hidden sm:block pointer-events-none mix-blend-plus-lighter" />
                                         </div>
                                         
-                                        <div className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center bg-background/50 text-center transition-all duration-300 hover:bg-accent/5 hover:border-accent/50 cursor-pointer relative z-10 flex-1 hover:scale-[1.01] hover:shadow-[0_0_20px_#FF99CC33] group">
-                                            <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-3 group-hover:bg-accent/20 transition-colors">
-                                                <Upload className="w-5 h-5 text-accent group-hover:-translate-y-1 transition-transform" />
+                                        <div className="space-y-4 flex-1">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Patient Address</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={patientAddr} 
+                                                        onChange={e => setPatientAddr(e.target.value)}
+                                                        placeholder="0x…" 
+                                                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-secondary/40" 
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Record Type</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={recordType} 
+                                                        onChange={e => setRecordType(e.target.value)}
+                                                        placeholder="e.g. MRI Scan" 
+                                                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-[11px] focus:outline-none focus:ring-2 focus:ring-secondary/40" 
+                                                    />
+                                                </div>
                                             </div>
-                                            <h3 className="text-[13px] font-semibold text-foreground mb-1">Drag and drop file to mint</h3>
-                                            <p className="text-[11px] text-muted-foreground mb-4 max-w-[200px]">Securely mint a new medical record to a patient's Web3 wallet.</p>
-                                            
-                                            <ShimmerButton className="py-3 px-8 rounded-xl text-[13px] font-semibold shadow-[0_0_20px_#FF99CC80] border-none flex" background='hsl(var(--accent))' shimmerColor="#FFFFFF">
-                                                <span className="flex items-center gap-1.5 text-background font-bold">
-                                                    Select File
-                                                </span>
-                                            </ShimmerButton>
+
+                                            <div 
+                                                className={`border-2 border-dashed border-border rounded-2xl p-6 flex flex-col items-center justify-center bg-background/50 text-center transition-all duration-300 relative z-10 hover:border-accent/50 group ${selectedFile ? 'border-accent/40 bg-accent/5' : ''}`}
+                                                onClick={() => fileInputRef.current?.click()}
+                                            >
+                                                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect} />
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors ${selectedFile ? 'bg-accent/20' : 'bg-accent/10 group-hover:bg-accent/20'}`}>
+                                                    <Upload className={`w-5 h-5 text-accent ${selectedFile ? '' : 'group-hover:-translate-y-1 transition-transform'}`} />
+                                                </div>
+                                                <h3 className="text-[13px] font-semibold text-foreground mb-1">
+                                                    {selectedFile ? selectedFile.name : 'Select PDF to mint'}
+                                                </h3>
+                                                <p className="text-[10px] text-muted-foreground mb-4 max-w-[200px]">
+                                                    {selectedFile ? `${(selectedFile.size/1024).toFixed(1)} KB` : 'Securely mint health data to a patient\'s wallet.'}
+                                                </p>
+                                                
+                                                <ShimmerButton 
+                                                    onClick={(e) => { e.stopPropagation(); handleMint(); }}
+                                                    disabled={!selectedFile || !patientAddr}
+                                                    className="py-2.5 px-8 rounded-xl text-[12px] font-bold shadow-[0_0_20px_#FF99CC80] border-none flex" 
+                                                    background='hsl(var(--accent))' 
+                                                    shimmerColor="#FFFFFF"
+                                                >
+                                                    <span className="flex items-center gap-1.5 text-background">
+                                                        {isAmendMode ? 'Confirm Amendment' : 'Start Minting'}
+                                                    </span>
+                                                </ShimmerButton>
+                                                
+                                                {isAmendMode && (
+                                                    <button onClick={(e) => { e.stopPropagation(); setIsAmendMode(false); setAmendTargetId(null); }} className="mt-3 text-[10px] text-muted-foreground hover:underline">
+                                                        Cancel Amend
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </GlassCard>
@@ -461,7 +555,13 @@ export default function DoctorDashboard() {
                                                                     </div>
                                                                 </div>
                                                              </div>
-                                                             <div>
+                                                             <div className="flex items-center gap-2 shrink-0">
+                                                                <button 
+                                                                    onClick={() => openAmendFlow(r)}
+                                                                    className="text-[9px] font-bold text-secondary hover:underline px-2 py-1 rounded-md hover:bg-secondary/10"
+                                                                >
+                                                                    Amend
+                                                                </button>
                                                                 <Badge variant="outline" className="text-[10px] bg-secondary/10 text-secondary border-secondary/20 shadow-sm">
                                                                     Immutable
                                                                 </Badge>
@@ -487,6 +587,14 @@ export default function DoctorDashboard() {
                     <div className="h-4" />
                 </motion.main>
             </div>
+
+            <TransactionModal 
+                state={tx.txState} 
+                onClose={tx.reset} 
+                title={tx.txTitle} 
+                txHash={tx.txHash} 
+                error={tx.txError} 
+            />
         </div>
     );
 }

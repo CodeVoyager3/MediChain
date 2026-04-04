@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useActiveAccount, useDisconnect } from 'thirdweb/react';
+import { useActiveAccount, useDisconnect, useActiveWalletChain, useSwitchActiveWalletChain } from 'thirdweb/react';
+import { polygonAmoy } from 'thirdweb/chains';
 import { signMessage } from 'thirdweb/utils';
 import { requestNonce, verifySignature, registerUser, getUserProfile } from '../services/api';
 
@@ -7,6 +8,7 @@ const AuthContext = createContext(null);
 
 const JWT_KEY = 'medichain_jwt';
 const USER_KEY = 'medichain_user';
+const AMOY_CHAIN_ID = 80002;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);       // { walletAddress, name, role }
@@ -15,6 +17,10 @@ export function AuthProvider({ children }) {
   const [showRegister, setShowRegister] = useState(false);
   const { disconnect } = useDisconnect();
   const account = useActiveAccount();
+  const chain = useActiveWalletChain();
+  const { switchChain } = useSwitchActiveWalletChain();
+
+  const isCorrectNetwork = chain?.id === AMOY_CHAIN_ID;
 
   const isAuthenticated = !!token && !!user;
 
@@ -40,6 +46,15 @@ export function AuthProvider({ children }) {
     if (!activeAccount) throw new Error('No active wallet account');
 
     const walletAddress = activeAccount.address;
+
+    // Step 0: Check network
+    if (chain?.id !== AMOY_CHAIN_ID) {
+      try {
+        await switchChain(polygonAmoy);
+      } catch (err) {
+        throw new Error('Please switch to Polygon Amoy Testnet to continue.');
+      }
+    }
 
     // Step 1: Request nonce from backend
     const nonceRes = await requestNonce(walletAddress);
@@ -126,6 +141,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    isCorrectNetwork,
+    switchNetwork: () => switchChain(polygonAmoy),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
