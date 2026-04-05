@@ -207,9 +207,9 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout }) {
                                         onClick={item.id === 'logout' ? onLogout : undefined}
                                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150
                                         ${item.id === 'logout'
-                                                ? 'text-muted-foreground hover:bg-red-950/30 hover:text-red-400'
-                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                                            }`}>
+                                            ? 'text-muted-foreground hover:bg-red-950/30 hover:text-red-400'
+                                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                        }`}>
                                         <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />
                                         {item.label}
                                     </button>
@@ -331,12 +331,12 @@ function GrantAccessModal({ open, onClose, records }) {
                     <button onClick={handleGrant} disabled={!doctorAddr.trim() || selectedRecords.length === 0} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
                         Grant Access
                     </button>
-                    <TransactionModal
-                        state={tx.txState}
-                        onClose={tx.reset}
-                        title={tx.txTitle}
-                        txHash={tx.txHash}
-                        error={tx.txError}
+                    <TransactionModal 
+                        state={tx.txState} 
+                        onClose={tx.reset} 
+                        title={tx.txTitle} 
+                        txHash={tx.txHash} 
+                        error={tx.txError} 
                     />
                 </div>
             </div>
@@ -397,6 +397,17 @@ export default function PatientDashboard() {
 
     useEffect(() => { fetchGrants(); }, [fetchGrants]);
 
+    const handleRevoke = async (doctorAddress, recordId) => {
+        tx.startTransaction('Revoking Access…');
+        try {
+            await revokeAccess(doctorAddress, recordId);
+            tx.setConfirmed();
+            fetchGrants(); // Refresh
+        } catch (err) {
+            tx.setFailed(err);
+        }
+    };
+
     // Derived data
     const totalRecords = records.length;
     const verifiedRecords = records.filter(r => !r.superseded).length;
@@ -436,18 +447,14 @@ export default function PatientDashboard() {
     // Revoke handler
     const handleRevoke = async (grant) => {
         setErrorMsg('');
-        tx.startTransaction('Revoking Access…');
         try {
             // Revoke each record in the grant
             for (const recId of grant.recordIds) {
                 await revokeAccess(grant.doctorAddress, recId);
             }
-            tx.setConfirmed();
-            // Remove from local tracking and refresh
+            // Remove from local tracking
             setActiveGrants(prev => prev.filter(g => g.id !== grant.id));
-            fetchGrants();
         } catch (err) {
-            tx.setFailed(err);
             setErrorMsg(err.message || 'Failed to revoke access');
         }
     };
@@ -890,12 +897,12 @@ export default function PatientDashboard() {
                 records={records}
             />
 
-            <TransactionModal
-                state={tx.txState}
-                onClose={tx.reset}
-                title={tx.txTitle}
-                txHash={tx.txHash}
-                error={tx.txError}
+            <TransactionModal 
+                state={tx.txState} 
+                onClose={tx.reset} 
+                title={tx.txTitle} 
+                txHash={tx.txHash} 
+                error={tx.txError} 
             />
         </div>
     );
