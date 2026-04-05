@@ -14,6 +14,7 @@ import java.math.BigInteger;
 import java.security.Key;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -56,7 +57,7 @@ public class AuthService {
 	}
 	
 	// Step 2 of Login: Verify the signature and issue JWT
-	public String verifySignatureAndIssueJwt(String claimedAddress, String signature) {
+	public Map<String, String> verifySignatureAndIssueJwt(String claimedAddress, String signature) {
 		Optional<User> userOpt = userRepository.findByWalletAddressIgnoreCase(claimedAddress);
 		if (userOpt.isEmpty() || userOpt.get().getNonce() == null) {
 			throw new RuntimeException("User not found or nonce missing. Request a nonce first.");
@@ -90,13 +91,15 @@ public class AuthService {
 				userRepository.save(user);
 				
 				// Issue the JWT
-				return Jwts.builder()
+				String token = Jwts.builder()
 						.setSubject(user.getWalletAddress())
 						.claim("role", user.getRole())
 						.setIssuedAt(new Date())
 						.setExpiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION_MS))
 						.signWith(getSigningKey())
 						.compact();
+				
+				return Map.of("token", token, "role", user.getRole());
 			} else {
 				throw new RuntimeException("Signature verification failed. Recovered address did not match.");
 			}

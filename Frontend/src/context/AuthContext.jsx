@@ -43,11 +43,11 @@ export const AuthProvider = ({ children }) => {
       console.log("Starting backend auth for:", accountInstance.address);
 
       // 2. Get Nonce
-      const { nonce } = await requestNonce(accountInstance.address);
+      const { messageToSign } = await requestNonce(accountInstance.address);
 
       // 3. Sign Message
       const signature = await signMessage({
-        message: nonce,
+        message: messageToSign,
         account: accountInstance,
       });
 
