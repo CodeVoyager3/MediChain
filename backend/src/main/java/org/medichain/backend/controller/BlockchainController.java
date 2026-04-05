@@ -27,14 +27,30 @@ public class BlockchainController {
 	@PostMapping("/mint")
 	public ResponseEntity<?> mintRecord(@RequestBody MintRecordRequest request) {
 		try {
-			log.info("Received REST API request to MINT record.");
-			String txHash = blockchainService.mintMedicalRecord(request.getPatientAddress(), request.getCid(), request.getPreviousRecordId());
+			// Pass the recordType to the service
+			String txHash = blockchainService.mintMedicalRecord(
+					request.getPatientAddress(),
+					request.getCid(),
+					request.getPreviousRecordId(),
+					request.getRecordType()
+			);
 			return ResponseEntity.ok(Map.of(
 					"status", "success",
 					"transactionHash", txHash
 			));
 		}
 		catch (Exception e) {
+			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+		}
+	}
+	
+	@GetMapping("/active-grants")
+	public ResponseEntity<?> getActiveGrants() {
+		try {
+			String patientWallet = (String) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+			var grants = blockchainService.getActiveGrants(patientWallet);
+			return ResponseEntity.ok(Map.of("status", "success", "data", grants));
+		} catch (Exception e) {
 			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
 		}
 	}

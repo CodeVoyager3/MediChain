@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useDisconnect, useActiveWallet } from 'thirdweb/react';
 import { createThirdwebClient } from "thirdweb";
 import { upload } from "thirdweb/storage";
 
 const client = createThirdwebClient({ clientId: import.meta.env.VITE_CLIENT_ID });
 
-import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye, Edit } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -38,6 +38,13 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout, waitingCoun
                         ))}
                     </ul>
                 </div>
+                <div>
+                    <ul className="space-y-0.5">
+                        {NAV.general.map(item => (
+                            <li key={item.id}><button onClick={item.id === 'logout' ? onLogout : undefined} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${item.id === 'logout' ? 'text-red-400 hover:bg-red-950/30' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><item.icon className="w-4 h-4 shrink-0" />{item.label}</button></li>
+                        ))}
+                    </ul>
+                </div>
             </nav>
         </aside>
     );
@@ -49,6 +56,9 @@ function IconBadge({ icon: Icon }) {
 
 export default function DoctorDashboard() {
     const { user, logout } = useAuth();
+    const { disconnect } = useDisconnect();
+    const wallet = useActiveWallet();
+
     const [activeNav, setActiveNav] = useState('overview');
     const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -82,11 +92,7 @@ export default function DoctorDashboard() {
     };
 
     const getCid = (r) => normalizeCid(
-        r.ipfsCid ||
-        r.ipfs_cid ||
-        r.cid ||
-        r.record?.ipfsCid ||
-        r.record?.ipfs_cid
+        r.ipfsCid || r.ipfs_cid || r.cid || r.record?.ipfsCid || r.record?.ipfs_cid
     );
 
     const getRecordId = (r) => r.recordId ?? r.record_id ?? r.id;
@@ -106,6 +112,20 @@ export default function DoctorDashboard() {
 
     useEffect(() => { fetchWaitingRoom(); }, [fetchWaitingRoom]);
 
+    const handleLogout = () => {
+        // 1. Sever the Web3 connection
+        if (wallet) {
+            disconnect(wallet);
+        }
+        // 2. Clear the local JWT
+        logout();
+
+        // 3. IMPORTANT: Wait 250ms for Thirdweb to clear LocalStorage before navigating away!
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 250);
+    };
+
     const handleCompleteAppointment = async (checkInId) => {
         try {
             await completeAppointment(checkInId);
@@ -118,9 +138,7 @@ export default function DoctorDashboard() {
 
     const handleSelectPatient = async (patientAddress) => {
         if (!patientAddress.trim()) return;
-
         const normalizedPatient = patientAddress.trim().toLowerCase();
-
         setSelectedPatient(normalizedPatient);
         setManualSearchQuery('');
         setLoadingRecords(true);
@@ -129,8 +147,7 @@ export default function DoctorDashboard() {
 
         try {
             const grantsRes = await getAccessibleRecords(normalizedPatient);
-            const grants = grantsRes.data || [];
-            setGrantedRecords(grants);
+            setGrantedRecords(grantsRes.data || []);
         } catch (err) {
             setGrantedRecords([]);
             setErrorMsg(err.message || 'Failed to fetch accessible records');
@@ -142,39 +159,52 @@ export default function DoctorDashboard() {
     const handleUploadAndMint = async () => {
         const targetAddress = selectedPatient || patientAddressToMint;
         if (!fileToMint || !targetAddress) { setErrorMsg("Please select a file and a patient."); return; }
+
         setIsUploading(true); setErrorMsg('');
         try {
+            console.log("Uploading to IPFS via Thirdweb...");
             const uri = await upload({ client, files: [fileToMint] });
-            await mintRecord(targetAddress, uri);
-            const cidStr = normalizeCid(uri);
-            setMintedRecords(prev => [{ id: Date.now(), recordId: 'Pending', recordType: fileToMint.name, patientAddress: targetAddress, status: 'Active', ipfsCid: cidStr }, ...prev]);
-            setFileToMint(null); setPatientAddressToMint('');
-            if (selectedPatient) handleSelectPatient(selectedPatient);
-        } catch (err) { setErrorMsg(err.message); } finally { setIsUploading(false); }
+            await mintRecord(targetAddress, uri, fileToMint.name);
+
+            setFileToMint(null);
+            setPatientAddressToMint('');
+
+            if (targetAddress === selectedPatient) {
+                await handleSelectPatient(targetAddress);
+            } else {
+                alert("Record securely minted and indexed!");
+            }
+        } catch (err) {
+            setErrorMsg(err.message);
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleAmendRecord = async (record) => {
         if (!amendFile) return;
         setIsAmending(true); setErrorMsg('');
+
         try {
             const uri = await upload({ client, files: [amendFile] });
-            await amendRecord(record.patientAddress, uri, record.recordId || record.id);
-            const cidStr = normalizeCid(uri);
+            await amendRecord(record.patientAddress, uri, record.recordId || record.id, record.recordType);
 
-            const updateLogic = (prev) => prev.map(r => (getRecordId(r) === getRecordId(record)) ? { ...r, status: 'Superseded', superseded: true } : r);
-            setMintedRecords(updateLogic); setGrantedRecords(updateLogic);
+            setAmendingRecordId(null);
+            setAmendFile(null);
 
-            setMintedRecords(prev => [{ id: Date.now(), recordId: 'Pending', recordType: `Amended: ${amendFile.name}`, patientAddress: record.patientAddress, status: 'Active', previousRecordId: getRecordId(record), ipfsCid: cidStr }, ...prev]);
-            if (selectedPatient === (record.patientAddress || '').toLowerCase()) handleSelectPatient(selectedPatient);
-
-            setAmendingRecordId(null); setAmendFile(null);
-        } catch (err) { setErrorMsg(err.message); } finally { setIsAmending(false); }
+            if (selectedPatient === (record.patientAddress || '').toLowerCase()) {
+                await handleSelectPatient(selectedPatient);
+            }
+        } catch (err) {
+            setErrorMsg(err.message);
+        } finally {
+            setIsAmending(false);
+        }
     };
 
-    const visibleGrantedRecords = grantedRecords.filter((r) => {
+    const validRecords = grantedRecords.filter((r) => {
         const recId = getRecordId(r);
         if (recId === undefined || recId === null) return false;
-
         const expiresAt = r.expiresAt || r.expires_at;
         if (expiresAt) {
             const expTs = new Date(expiresAt).getTime();
@@ -183,10 +213,13 @@ export default function DoctorDashboard() {
         return true;
     });
 
+    const grantedList = validRecords.filter(r => r.isGranted);
+    const authoredList = validRecords.filter(r => r.isAuthored && !r.isGranted);
+
     return (
         <div className="flex h-screen overflow-hidden font-body bg-background">
-            <div className="hidden lg:flex"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={logout} waitingCount={waitingRoom.length} /></div>
-            {mobileOpen && <div className="fixed inset-y-0 left-0 z-50 lg:hidden"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={logout} waitingCount={waitingRoom.length} /></div>}
+            <div className="hidden lg:flex"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} waitingCount={waitingRoom.length} /></div>
+            {mobileOpen && <div className="fixed inset-y-0 left-0 z-50 lg:hidden"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} waitingCount={waitingRoom.length} /></div>}
 
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 <AmbientParticles />
@@ -234,33 +267,88 @@ export default function DoctorDashboard() {
                                                 {selectedPatient && <button onClick={() => setSelectedPatient(null)} className="text-[10px] bg-red-950/30 text-red-400 px-2 py-1 rounded hover:bg-red-900/50 transition">Close Patient</button>}
                                             </div>
                                         </div>
-                                        <div className="flex-1 overflow-y-auto">
+                                        <div className="flex-1 overflow-y-auto pr-2 space-y-6">
                                             {!selectedPatient ? (
                                                 <p className="text-center text-[11px] text-muted-foreground py-12">Select or search a patient to view files.</p>
-                                            ) : loadingRecords ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div> : visibleGrantedRecords.length === 0 ? <p className="text-center text-[11px] text-muted-foreground py-12">No shared records.</p> : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    {visibleGrantedRecords.map((grant) => {
-                                                        const recId = getRecordId(grant);
-                                                        const cid = getCid(grant);
-                                                        const canOpen = !!cid;
-                                                        return (
-                                                            <div key={recId} className="p-4 rounded-xl border bg-background/60">
-                                                                <h3 className="text-[12px] font-bold font-mono mb-1">#{recId}</h3>
-                                                                <p className="text-[10px] text-muted-foreground truncate mb-1">{grant.recordType || 'Medical Record'}</p>
-                                                                <p className="text-[10px] text-muted-foreground truncate mb-3">
-                                                                    {canOpen ? `CID: ${cid.slice(0, 24)}…` : 'CID unavailable from current API'}
-                                                                </p>
-                                                                <button
-                                                                    onClick={(e) => canOpen && handleViewDocument(e, cid)}
-                                                                    disabled={!canOpen}
-                                                                    className="w-full py-2 rounded-lg text-[11px] font-semibold bg-secondary/10 text-secondary hover:bg-secondary hover:text-background disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                                                                >
-                                                                    <Eye className="w-3.5 h-3.5" /> {canOpen ? 'View File' : 'Metadata Unavailable'}
-                                                                </button>
+                                            ) : loadingRecords ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div> : (
+                                                <>
+                                                    <div>
+                                                        <h4 className="text-xs font-bold text-emerald-500 mb-3 flex items-center gap-2"><Eye className="w-3.5 h-3.5"/> Granted Access</h4>
+                                                        {grantedList.length === 0 ? <p className="text-[11px] text-muted-foreground">No shared records.</p> : (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                {grantedList.map((grant) => {
+                                                                    const recId = getRecordId(grant);
+                                                                    const cid = getCid(grant);
+                                                                    const canOpen = !!cid;
+                                                                    const isAmendTarget = amendingRecordId === recId;
+                                                                    return (
+                                                                        <div key={recId} className={`p-4 rounded-xl border bg-background/60 ${grant.superseded ? 'opacity-50' : ''}`}>
+                                                                            <h3 className={`text-[12px] font-bold font-mono mb-1 ${grant.superseded ? 'line-through' : ''}`}>#{recId}</h3>
+                                                                            <p className="text-[10px] text-muted-foreground truncate mb-3">{grant.recordType}</p>
+
+                                                                            <div className="flex gap-2">
+                                                                                <button onClick={(e) => canOpen && handleViewDocument(e, cid)} disabled={!canOpen} className="flex-1 py-2 rounded-lg text-[11px] font-semibold bg-secondary/10 text-secondary hover:bg-secondary hover:text-background disabled:opacity-50 flex items-center justify-center gap-1.5">
+                                                                                    <Eye className="w-3.5 h-3.5" /> View
+                                                                                </button>
+
+                                                                                {grant.isAuthored && !grant.superseded && !isAmendTarget && (
+                                                                                    <button onClick={() => setAmendingRecordId(recId)} className="px-3 py-2 rounded-lg bg-amber-950/30 text-amber-400 hover:bg-amber-900/50"><Edit className="w-3.5 h-3.5" /></button>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {isAmendTarget && (
+                                                                                <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2">
+                                                                                    <input type="file" onChange={e => setAmendFile(e.target.files?.[0] || null)} className="text-[9px] file:py-1 file:px-2 file:rounded file:bg-muted" />
+                                                                                    <div className="flex gap-2">
+                                                                                        <button onClick={() => handleAmendRecord(grant)} disabled={!amendFile || isAmending} className="flex-1 py-1.5 rounded text-[10px] bg-amber-500 text-background font-bold flex justify-center items-center gap-1">{isAmending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm Amend'}</button>
+                                                                                        <button onClick={() => {setAmendingRecordId(null); setAmendFile(null);}} className="px-3 py-1.5 rounded text-[10px] bg-muted text-foreground">Cancel</button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div>
+                                                        <h4 className="text-xs font-bold text-amber-500 mb-3 flex items-center gap-2"><Edit className="w-3.5 h-3.5"/> Past Authored Records (Amend Only)</h4>
+                                                        {authoredList.length === 0 ? <p className="text-[11px] text-muted-foreground">No other authored records found.</p> : (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                {authoredList.map((grant) => {
+                                                                    const recId = getRecordId(grant);
+                                                                    const isAmendTarget = amendingRecordId === recId;
+                                                                    return (
+                                                                        <div key={recId} className={`p-4 rounded-xl border border-amber-900/30 bg-background/40 ${grant.superseded ? 'opacity-50' : ''}`}>
+                                                                            <div className="flex justify-between items-start mb-1">
+                                                                                <h3 className={`text-[12px] font-bold font-mono ${grant.superseded ? 'line-through' : ''}`}>#{recId}</h3>
+                                                                                <Badge variant="outline" className="text-[8px] h-4 px-1.5 border-amber-900/50 text-amber-500/70">Locked</Badge>
+                                                                            </div>
+                                                                            <p className="text-[10px] text-muted-foreground truncate mb-3">{grant.recordType}</p>
+
+                                                                            {!grant.superseded && !isAmendTarget && (
+                                                                                <button onClick={() => setAmendingRecordId(recId)} className="w-full py-2 rounded-lg text-[11px] font-semibold bg-amber-950/30 text-amber-400 hover:bg-amber-900/50 flex items-center justify-center gap-1.5">
+                                                                                    <Edit className="w-3.5 h-3.5" /> Amend Record
+                                                                                </button>
+                                                                            )}
+
+                                                                            {isAmendTarget && (
+                                                                                <div className="mt-2 pt-2 border-t border-border flex flex-col gap-2">
+                                                                                    <input type="file" onChange={e => setAmendFile(e.target.files?.[0] || null)} className="text-[9px] file:py-1 file:px-2 file:rounded file:bg-muted" />
+                                                                                    <div className="flex gap-2">
+                                                                                        <button onClick={() => handleAmendRecord(grant)} disabled={!amendFile || isAmending} className="flex-1 py-1.5 rounded text-[10px] bg-amber-500 text-background font-bold flex justify-center items-center gap-1">{isAmending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm Amend'}</button>
+                                                                                        <button onClick={() => {setAmendingRecordId(null); setAmendFile(null);}} className="px-3 py-1.5 rounded text-[10px] bg-muted text-foreground">Cancel</button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
                                     </div>
@@ -269,8 +357,8 @@ export default function DoctorDashboard() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        <div className="flex-1 shrink-0 min-w-0">
+                    <div className="flex gap-4">
+                        <div className="flex-1">
                             <MagicCard className="h-full bg-transparent" gradientColor='hsl(var(--muted))'>
                                 <GlassCard>
                                     <div className="p-5 flex flex-col items-center justify-center h-full text-center">
@@ -286,45 +374,6 @@ export default function DoctorDashboard() {
                                             <ShimmerButton onClick={handleUploadAndMint} disabled={isUploading || !fileToMint || (!selectedPatient && !patientAddressToMint)} className="py-2.5 rounded-xl text-[12px] font-bold border-none" background='hsl(var(--accent))'>
                                                 <span className="flex gap-2 text-background">{isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{isUploading ? 'Minting...' : 'Mint Record'}</span>
                                             </ShimmerButton>
-                                        </div>
-                                    </div>
-                                </GlassCard>
-                            </MagicCard>
-                        </div>
-
-                        <div className="w-full lg:w-[50%]">
-                            <MagicCard className="h-full bg-transparent" gradientColor="hsl(var(--muted))">
-                                <GlassCard>
-                                    <div className="p-5 flex flex-col h-full">
-                                        <div className="flex items-center gap-2 mb-4"><IconBadge icon={FileSignature} /><span className="text-[13px] font-semibold">Session Mint History</span></div>
-                                        <div className="space-y-3 flex-1 overflow-y-auto">
-                                            {mintedRecords.length === 0 ? <p className="text-[11px] text-center text-muted-foreground py-6">No records minted.</p> : (
-                                                mintedRecords.map(r => {
-                                                    const isSuperseded = r.status === 'Superseded' || r.superseded;
-                                                    const rid = getRecordId(r);
-                                                    const isAmendTarget = amendingRecordId === rid;
-                                                    return (
-                                                        <div key={rid} className={`p-3.5 rounded-xl border ${isSuperseded ? 'opacity-50' : ''}`}>
-                                                            <div className="flex items-center justify-between">
-                                                                <div>
-                                                                    <p className={`text-[12px] font-semibold ${isSuperseded ? 'line-through' : ''}`}>{r.recordType}</p>
-                                                                    <p className="text-[10px] text-muted-foreground font-mono">{r.patientAddress.slice(0,6)}… | #{rid}</p>
-                                                                </div>
-                                                                <div className="flex gap-2">
-                                                                    {!isSuperseded && !isAmendTarget && <button onClick={(e) => handleViewDocument(e, getCid(r))} className="p-1.5 rounded bg-secondary/10 text-secondary"><Eye className="w-3.5 h-3.5" /></button>}
-                                                                    {!isSuperseded && <button onClick={() => setAmendingRecordId(isAmendTarget ? null : rid)} className="text-[10px] px-2 py-1 rounded bg-amber-950/30 text-amber-400">{isAmendTarget ? 'Cancel' : 'Amend'}</button>}
-                                                                </div>
-                                                            </div>
-                                                            {isAmendTarget && (
-                                                                <div className="mt-3 pt-3 border-t border-border flex gap-2">
-                                                                    <input type="file" onChange={e => setAmendFile(e.target.files?.[0] || null)} className="flex-1 text-[9px] file:py-1 file:px-2 file:rounded file:bg-muted" />
-                                                                    <button onClick={() => handleAmendRecord(r)} disabled={!amendFile || isAmending} className="px-3 py-1 rounded text-[10px] bg-amber-500 text-background flex items-center gap-1">{isAmending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm'}</button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
                                         </div>
                                     </div>
                                 </GlassCard>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 import { createThirdwebClient } from "thirdweb";
-import { ConnectButton, useActiveAccount, useActiveWalletChain } from "thirdweb/react";
+import { ConnectButton, useActiveAccount, useActiveWalletChain, useDisconnect, useActiveWallet } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -21,7 +21,6 @@ const client = createThirdwebClient({
     clientId: import.meta.env.VITE_CLIENT_ID
 });
 
-// ✅ FIX 1: Only allow MetaMask login
 const wallets = [
     createWallet("io.metamask"),
 ];
@@ -29,13 +28,18 @@ const wallets = [
 export function Navbar() {
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // Lock to prevent double-firing the signature request
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+
     const { login, isAuthenticated, user } = useAuth();
-
-    const account = useActiveAccount();
-    const activeChain = useActiveWalletChain(); // ✅ FIX 2: Track the active network
-
     const navigate = useNavigate();
-    const [hasTriedLogin, setHasTriedLogin] = useState(false);
+
+    // Thirdweb Hooks
+    const account = useActiveAccount();
+    const activeChain = useActiveWalletChain();
+    const wallet = useActiveWallet();
+    const { disconnect } = useDisconnect();
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 60);
@@ -43,33 +47,45 @@ export function Navbar() {
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
 
-    // When a wallet connects AND we haven't authenticated yet, trigger backend auth
+    // ---------------------------------------------------------
+    // THE BULLETPROOF AUTH LOGIC
+    // ---------------------------------------------------------
     useEffect(() => {
-        if (account && !isAuthenticated && !hasTriedLogin) {
+        // 1. Ignore if no wallet, already logged in, or currently processing
+        if (!account || isAuthenticated || isLoggingIn) return;
 
-            // ✅ FIX 2: Block login if the user hasn't switched to Polygon Amoy yet
-            if (activeChain && activeChain.id !== polygonAmoy.id) {
-                console.log("Waiting for user to switch to Polygon Amoy...");
-                return;
+        // 2. Wait for the user to be on the correct network
+        if (activeChain && activeChain.id !== polygonAmoy.id) return;
+
+        const authenticate = async () => {
+            setIsLoggingIn(true);
+            try {
+                console.log("Wallet detected, requesting backend signature...");
+                const result = await login(account, client);
+
+                if (result && result.role && result.role !== 'UNREGISTERED') {
+                    const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
+                    navigate(roleRoutes[result.role] || '/');
+                }
+            } catch (err) {
+                console.error('Signature rejected or login failed:', err);
+
+                // CRITICAL FIX: If they reject the signature, disconnect the wallet!
+                // This stops the infinite MetaMask loop permanently.
+                if (wallet) {
+                    disconnect(wallet);
+                }
+            } finally {
+                setIsLoggingIn(false);
             }
+        };
 
-            setHasTriedLogin(true);
-            login(account, client)
-                .then((result) => {
-                    if (result && result.role && result.role !== 'UNREGISTERED') {
-                        const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
-                        navigate(roleRoutes[result.role] || '/');
-                    }
-                    // If UNREGISTERED, the RegisterModal will appear via AuthContext
-                })
-                .catch((err) => {
-                    console.error('Backend auth failed:', err);
-                    setHasTriedLogin(false); // Allow retry if it fails
-                });
-        }
-    }, [account, activeChain, isAuthenticated, hasTriedLogin, login, navigate]);
+        authenticate();
 
-    // If user completes registration, redirect them
+    }, [account, activeChain, isAuthenticated, isLoggingIn, login, navigate, wallet, disconnect]);
+
+
+    // If user completes registration or is already logged in, redirect them
     useEffect(() => {
         if (isAuthenticated && user?.role && user.role !== 'UNREGISTERED') {
             const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
@@ -77,6 +93,7 @@ export function Navbar() {
             if (target) navigate(target);
         }
     }, [isAuthenticated, user?.role, navigate]);
+
 
     return (
         <>
@@ -88,12 +105,10 @@ export function Navbar() {
                 }`}
             >
                 <div className="max-w-6xl mx-auto px-5 md:px-10 flex items-center justify-between">
-                    {/* Logo */}
                     <a href="#" className="flex items-center">
                         <img src="/logo.png" alt="MediChain Logo" className="h-[2.5rem] md:h-12 w-auto object-contain" />
                     </a>
 
-                    {/* Desktop Nav Links */}
                     <ul className="hidden md:flex items-center gap-7">
                         {navLinks.map((link) => (
                             <li key={link.label}>
@@ -107,21 +122,20 @@ export function Navbar() {
                         ))}
                     </ul>
 
-                    {/* Right side: theme toggle + CTA */}
                     <div className="hidden md:flex items-center gap-3">
                         <AnimatedThemeToggler />
+
                         <ConnectButton
                             client={client}
                             wallets={wallets}
                             theme="light"
                             chain={polygonAmoy}
-                            connectModal={{ size: 'compact' }} // Changed to compact since it's just MetaMask
+                            connectModal={{ size: 'compact' }}
                             connectButton={{ label: 'Connect Wallet' }}
                             className="inline-flex items-center gap-1.5 text-[0.8rem] font-body px-5 py-2.5 rounded-full font-medium bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-all duration-200 hover:-translate-y-px"
                         />
                     </div>
 
-                    {/* Mobile: theme toggle + hamburger */}
                     <div className="md:hidden flex items-center gap-2">
                         <AnimatedThemeToggler />
                         <button
@@ -134,7 +148,6 @@ export function Navbar() {
                 </div>
             </nav>
 
-            {/* Mobile Menu */}
             <AnimatePresence>
                 {menuOpen && (
                     <motion.div

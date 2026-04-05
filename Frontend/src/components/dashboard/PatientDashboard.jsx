@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useDisconnect, useActiveWallet } from 'thirdweb/react';
+import { getPatientVault, grantAccess, revokeAccess, checkInToClinic, getActiveGrants, getPatientCheckInStatus, leaveClinic } from '../../services/api';
 import { LayoutDashboard, FileText, ShieldCheck, Bell, Settings, LogOut, Stethoscope, Activity, Search, Plus, Calendar, Hospital, HeartPulse, Syringe, Menu, HelpCircle, Mail, CheckCircle2, ClipboardList, Download, Bot, ChevronsLeft, Upload, Loader2, X, QrCode, Trash2, Clock, Eye, AlertTriangle } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 import { motion } from 'framer-motion';
@@ -13,12 +14,10 @@ import { ShimmerButton } from '../magicui/shimmer-button';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { useAuth } from '../../context/AuthContext';
-import { getPatientVault, grantAccess, revokeAccess, checkInToClinic, getActiveGrants } from '../../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const FALLBACK_CHART_DATA = [{ month: 'Jan', v: 0 }, { month: 'Feb', v: 0 }, { month: 'Mar', v: 0 }, { month: 'Apr', v: 0 }, { month: 'May', v: 0 }, { month: 'Jun', v: 0 }, { month: 'Jul', v: 0 }, { month: 'Aug', v: 0 }, { month: 'Sep', v: 0 }, { month: 'Oct', v: 0 }, { month: 'Nov', v: 0 }, { month: 'Dec', v: 0 }];
-const RECORD_ICONS = { 'Blood Test': Activity, 'MRI': Hospital, 'Vaccination': Syringe, 'Cardiology': HeartPulse };
 const NAV = {
     main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'records', label: 'My Records', icon: FileText }, { id: 'access', label: 'Access Control', icon: ShieldCheck }, { id: 'appointments', label: 'Appointments', icon: Calendar }],
     features: [{ id: 'prescriptions', label: 'Prescriptions', icon: ClipboardList }, { id: 'scans', label: 'Scans & Imaging', icon: Bot }, { id: 'notifications', label: 'Notifications', icon: Bell }],
@@ -125,6 +124,9 @@ function GrantAccessModal({ open, onClose, records }) {
 
 export default function PatientDashboard() {
     const { user, logout } = useAuth();
+    const { disconnect } = useDisconnect();
+    const wallet = useActiveWallet();
+
     const [activeNav, setActiveNav] = useState('records');
     const [mobileOpen, setMobileOpen] = useState(false);
     const [records, setRecords] = useState([]);
@@ -132,13 +134,13 @@ export default function PatientDashboard() {
     const [errorMsg, setErrorMsg] = useState('');
     const [grantModalOpen, setGrantModalOpen] = useState(false);
 
-    // Check-in States
+    const [revokingId, setRevokingId] = useState(null);
+
     const [checkInDoctorAddr, setCheckInDoctorAddr] = useState('');
     const [isCheckingIn, setIsCheckingIn] = useState(false);
-    const [activeCheckIn, setActiveCheckIn] = useState(null); // Tracks current clinic
 
+    const [activeCheckIn, setActiveCheckIn] = useState(() => localStorage.getItem('medichain_checkin') || null);
     const [activeGrants, setActiveGrants] = useState([]);
-    const [localGrantHistory, setLocalGrantHistory] = useState([]);
 
     const normalizeCid = (value) => {
         if (!value) return null;
@@ -147,7 +149,6 @@ export default function PatientDashboard() {
         if (v.includes("/")) v = v.split("/")[0];
         return v.length > 10 ? v : null;
     };
-
     const getCid = (r) => normalizeCid(r.ipfsCid || r.ipfs_cid || r.cid || r.record?.ipfsCid || r.record?.ipfs_cid);
 
     const handleViewDocument = (e, cid) => {
@@ -167,9 +168,44 @@ export default function PatientDashboard() {
         catch (err) { setActiveGrants([]); }
     }, []);
 
-    useEffect(() => { fetchRecords(); fetchGrants(); }, [fetchRecords, fetchGrants]);
+    const syncCheckInStatus = useCallback(async () => {
+        try {
+            const res = await getPatientCheckInStatus();
+            if (res.data && res.data.doctorAddress) {
+                setActiveCheckIn(res.data.doctorAddress);
+                localStorage.setItem('medichain_checkin', res.data.doctorAddress);
+            } else {
+                setActiveCheckIn(null);
+                localStorage.removeItem('medichain_checkin');
+            }
+        } catch (err) {}
+    }, []);
 
-    const handleLogout = () => { logout(); window.location.href = '/'; };
+    useEffect(() => {
+        fetchRecords();
+        fetchGrants();
+        syncCheckInStatus();
+
+        const interval = setInterval(() => {
+            syncCheckInStatus();
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [fetchRecords, fetchGrants, syncCheckInStatus]);
+
+    const handleLogout = () => {
+        // 1. Sever the Web3 connection
+        if (wallet) {
+            disconnect(wallet);
+        }
+        // 2. Clear the local JWT
+        logout();
+
+        // 3. IMPORTANT: Wait 250ms for Thirdweb to clear LocalStorage before navigating away!
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 250);
+    };
 
     const handleCheckIn = async () => {
         if (!checkInDoctorAddr.trim()) return;
@@ -177,32 +213,47 @@ export default function PatientDashboard() {
         try {
             await checkInToClinic(checkInDoctorAddr.trim());
             setActiveCheckIn(checkInDoctorAddr.trim());
-            setCheckInDoctorAddr(''); // Clear input
+            localStorage.setItem('medichain_checkin', checkInDoctorAddr.trim());
+            setCheckInDoctorAddr('');
         } catch (err) { setErrorMsg(err.message); } finally { setIsCheckingIn(false); }
     };
 
-    const mergedGrants = [...localGrantHistory, ...activeGrants].filter((g, idx, arr) => {
-        const key = `${(g.doctorAddress || '').toLowerCase()}-${(g.recordIds || []).join(',')}`;
-        return arr.findIndex(x => `${(x.doctorAddress || '').toLowerCase()}-${(x.recordIds || []).join(',')}` === key) === idx;
-    });
+    const [isLeaving, setIsLeaving] = useState(false);
+
+    const handleLeaveRoom = async () => {
+        setIsLeaving(true);
+        setErrorMsg('');
+        try {
+            await leaveClinic();
+            setActiveCheckIn(null);
+            localStorage.removeItem('medichain_checkin');
+        } catch (err) {
+            setErrorMsg(err.message);
+        } finally {
+            setIsLeaving(false);
+        }
+    };
 
     const handleRevoke = async (grant) => {
         setErrorMsg('');
+        setRevokingId(grant.id);
         try {
-            const doctorAddress = grant.doctorAddress || grant.viewerAddress || grant.viewer_address;
-            const singleRecordId = grant.recordId ?? grant.record_id;
+            const docAddress = grant.doctorAddress || grant.viewerAddress;
+            const recordsToRevoke = Array.isArray(grant.recordIds) && grant.recordIds.length > 0
+                ? grant.recordIds
+                : [grant.recordId];
 
-            if (singleRecordId !== undefined && singleRecordId !== null) {
-                await revokeAccess(doctorAddress, singleRecordId);
-            } else if (Array.isArray(grant.recordIds) && grant.recordIds.length) {
-                for (const recId of grant.recordIds) await revokeAccess(doctorAddress, recId);
-            } else {
-                throw new Error('Invalid grant payload: missing recordId/recordIds');
+            if (!recordsToRevoke[0]) throw new Error('No valid record IDs found to revoke.');
+
+            for (const recId of recordsToRevoke) {
+                await revokeAccess(docAddress, recId);
             }
-
-            setLocalGrantHistory(prev => prev.filter(g => g.id !== grant.id));
             await fetchGrants();
-        } catch (err) { setErrorMsg(err.message); }
+        } catch (err) {
+            setErrorMsg(err.message);
+        } finally {
+            setRevokingId(null);
+        }
     };
 
     return (
@@ -270,7 +321,20 @@ export default function PatientDashboard() {
                                         <CheckCircle2 className="w-8 h-8 text-emerald-500 mb-2" />
                                         <h3 className="text-[14px] font-bold text-emerald-500 mb-1">Checked In</h3>
                                         <p className="text-[11px] text-muted-foreground mb-4">You are securely in the waiting room for:<br/><span className="font-mono text-emerald-400 mt-1 block">{activeCheckIn.slice(0,10)}...</span></p>
-                                        <Button variant="outline" onClick={() => setActiveCheckIn(null)} className="text-[11px] h-8 border-emerald-500/50 text-emerald-500 hover:bg-emerald-900/30 hover:text-emerald-400">Leave Waiting Room</Button>
+
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="text-[10px] uppercase tracking-widest font-bold text-emerald-500/50">Waiting for Doctor...</div>
+
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleLeaveRoom}
+                                                disabled={isLeaving}
+                                                className="text-[11px] h-8 border-emerald-500/50 text-emerald-500 hover:bg-emerald-900/30 hover:text-emerald-400 flex items-center gap-1.5"
+                                            >
+                                                {isLeaving && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                {isLeaving ? 'Leaving...' : 'Leave Waiting Room'}
+                                            </Button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="border-2 border-dashed rounded-2xl p-6 bg-background/50 flex flex-col items-center text-center">
@@ -288,16 +352,25 @@ export default function PatientDashboard() {
                                 <div>
                                     <h3 className="text-[14px] font-semibold mb-4">Active Access Grants</h3>
                                     <div className="space-y-3">
-                                        {mergedGrants.length === 0 ? (
+                                        {activeGrants.length === 0 ? (
                                             <p className="text-[11px] text-muted-foreground text-center py-4">No active access grants.</p>
                                         ) : (
-                                            mergedGrants.map(grant => (
+                                            activeGrants.map(grant => (
                                                 <div key={grant.id} className="flex justify-between items-center p-3.5 rounded-xl border bg-background">
                                                     <div>
                                                         <p className="text-[12px] font-semibold font-mono">{`${(grant.doctorAddress || grant.viewerAddress || grant.viewer_address || '').slice(0, 6)}…`}</p>
                                                         <p className="text-[10px] text-muted-foreground">{Array.isArray(grant.recordIds) ? grant.recordIds.length : 1} Records • {grant.durationLabel || 'Active'}</p>
                                                     </div>
-                                                    <button onClick={() => handleRevoke(grant)} className="px-3 py-2 rounded-lg text-[11px] font-semibold text-red-400 bg-red-950/20 hover:bg-red-500 hover:text-white">Revoke</button>
+
+                                                    <button
+                                                        onClick={() => handleRevoke(grant)}
+                                                        disabled={revokingId === grant.id}
+                                                        className="px-3 py-2 rounded-lg text-[11px] font-semibold text-red-400 bg-red-950/20 hover:bg-red-500 hover:text-white disabled:opacity-50 flex items-center gap-2"
+                                                    >
+                                                        {revokingId === grant.id && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                        {revokingId === grant.id ? 'Revoking...' : 'Revoke'}
+                                                    </button>
+
                                                 </div>
                                             ))
                                         )}
@@ -314,9 +387,14 @@ export default function PatientDashboard() {
                                     <TableBody>
                                         {records.map((row) => {
                                             const verified = !row.superseded;
+
+                                            let activityLabel = "Record Minted";
+                                            if (row.previousRecordId) activityLabel = "Amendment Issued";
+                                            else if (row.superseded) activityLabel = "Record Archived";
+
                                             return (
                                                 <TableRow key={row.recordId}>
-                                                    <TableCell className="py-3 pl-5"><span className="text-[12px] font-medium">Record Minted</span></TableCell>
+                                                    <TableCell className="py-3 pl-5"><span className="text-[12px] font-medium">{activityLabel}</span></TableCell>
                                                     <TableCell className="py-3 font-mono text-[11px]">#{row.recordId}</TableCell>
                                                     <TableCell className="py-3 text-[11px]">{row.recordType}</TableCell>
                                                     <TableCell className="py-3 pr-5 text-right flex gap-2 justify-end">
@@ -336,16 +414,9 @@ export default function PatientDashboard() {
             <GrantAccessModal open={grantModalOpen} onClose={(res) => {
                 setGrantModalOpen(false);
                 if (res?.success) {
-                    const newGrant = {
-                        id: `local-${Date.now()}`,
-                        doctorAddress: res.grant.doctorAddress,
-                        recordIds: res.grant.recordIds || [],
-                        durationLabel: res.grant.durationLabel || 'Active',
-                        _local: true,
-                    };
-                    setLocalGrantHistory(prev => [newGrant, ...prev]);
                     fetchGrants();
                     setActiveCheckIn(res.grant.doctorAddress);
+                    localStorage.setItem('medichain_checkin', res.grant.doctorAddress);
                 }
             }} records={records} />
         </div>
