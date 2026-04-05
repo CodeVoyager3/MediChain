@@ -4,59 +4,69 @@
 
 @layer base {
   :root {
-    --background: 36 50% 78%; /* Ceramic #DECBB0 */
-    --foreground: 43 27% 8%; /* Blueberry #1B1810 */
+    /* Light Gray Theme */
+    --background: 0 0% 90.6%; /* #E7E7E7 */
+    --foreground: 220 41% 30%; /* Darker Steel Blue for contrast */
 
-    --primary: 43 27% 8%;
-    --primary-foreground: 36 50% 78%;
+    --primary: 220 41% 56%; /* Steel Blue #607EBC */
+    --primary-foreground: 144 21% 95%; /* Very light Mint */
 
-    --secondary: 18 69% 41%; /* Lily #B04B20 */
-    --secondary-foreground: 36 50% 90%;
+    --secondary: 144 21% 75%; /* Slightly darker Mint */
+    --secondary-foreground: 220 41% 30%;
 
-    --muted: 36 40% 72%;
-    --muted-foreground: 36 20% 40%;
+    --muted: 144 21% 80%;
+    --muted-foreground: 220 20% 40%;
 
-    --accent: 18 69% 41%;
-    --accent-foreground: 36 50% 90%;
+    --accent: 220 41% 56%; /* Steel Blue */
+    --accent-foreground: 144 21% 95%;
 
-    --border: 36 30% 68%;
-    --ring: 18 69% 41%;
+    --border: 144 20% 70%;
+    --ring: 220 41% 56%;
 
-    --card: 36 45% 82%;
-    --card-foreground: 43 27% 8%;
+    --card: 144 21% 88%;
+    --card-foreground: 220 41% 30%;
 
     --radius: 0.75rem;
 
     --font-display: 'Instrument Serif', serif;
     --font-body: 'Inter', sans-serif;
 
-    --shadow-dashboard: 0 25px 80px -12px rgba(27, 24, 16, 0.08), 0 0 0 1px rgba(27, 24, 16, 0.06);
+    --shadow-dashboard: 0 25px 80px -12px rgba(96, 126, 188, 0.15), 0 0 0 1px rgba(96, 126, 188, 0.1);
 
     /* Custom UI Effect Tokens */
-    --magic-glow: 36 60% 88%; /* Light ceramic glow */
-    --particle-color: 18 69% 41%; /* Lily particles */
+    --magic-glow: 144 40% 90%;
+    --particle-color: 220 41% 56%;
+    --hero-url: url('/bg-light.jpg');
   }
 
   .dark {
     --background: 0 0% 5%;
-    --foreground: 60 5% 90%;
-    --primary: 60 5% 90%;
+    --foreground: 144 21% 90%; /* Soft Mint text */
+
+    --primary: 220 41% 56%; /* Keep Steel Blue as primary CTA */
     --primary-foreground: 0 0% 5%;
-    --secondary: 68 76% 64%;
-    --secondary-foreground: 0 0% 5%;
+
+    --secondary: 144 21% 20%; /* Dark Mint areas */
+    --secondary-foreground: 144 21% 85%; /* Soft Mint highlight */
+
     --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 330 100% 80%;
+    --muted-foreground: 144 21% 70%; /* Soft Mint muted text */
+
+    --accent: 144 21% 85%; /* Soft Mint is the "light area" in dark theme */
     --accent-foreground: 0 0% 5%;
-    --border: 0 0% 14%;
-    --ring: 68 76% 64%;
+
+    --border: 144 21% 20%;
+    --ring: 220 41% 56%;
+
     --card: 0 0% 7%;
-    --card-foreground: 60 5% 90%;
-    --shadow-dashboard: 0 25px 80px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(210, 231, 95, 0.04);
+    --card-foreground: 144 21% 90%;
+    
+    --shadow-dashboard: 0 25px 80px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(209, 224, 215, 0.04);
     
     /* Custom UI Effect Tokens */
-    --magic-glow: 0 0% 15%; /* #262626 */
-    --particle-color: 68 76% 64%; /* lime */
+    --magic-glow: 144 21% 15%;
+    --particle-color: 144 21% 85%;
+    --hero-url: url('/bg-dark.png');
   }
 }
 
@@ -68,12 +78,42 @@
   body {
     @apply bg-background text-foreground transition-colors duration-300;
   }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-br from-primary to-secondary inline-block;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 /* View transition for theme toggle */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation: none;
+  animation: none;/* Override Thirdweb internal styles with higher specificity */
+button.btn-connect-navbar, 
+button.btn-connect-navbar-mobile,
+button.tw-connect-wallet {
+  border-radius: 9999px !important;
+  background-color: hsl(var(--background)) !important; /* Soft Mint / Creme */
+  color: hsl(var(--foreground)) !important; /* Steel Blue */
+  font-family: inherit !important;
+  font-weight: 600 !important;
+  font-size: 0.825rem !important;
+  padding: 0 1.5rem !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 1px solid hsla(var(--foreground), 0.1) !important;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08) !important;
+}
+
+button.btn-connect-navbar:hover, 
+button.btn-connect-navbar-mobile:hover,
+button.tw-connect-wallet:hover {
+  opacity: 0.92 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.16) !important;
+}
   mix-blend-mode: normal;
 }
 

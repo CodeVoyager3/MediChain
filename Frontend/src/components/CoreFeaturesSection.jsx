@@ -9,7 +9,7 @@ const solutions = [
     description:
       'Medical records are minted as NFTs securely stored on IPFS, inextricably tied to your wallet—not a hospital server.',
     Icon: Fingerprint,
-    iconColor: 'text-violet-400',
+    iconColor: 'text-primary',
     delay: 0,
   },
   {
@@ -17,7 +17,7 @@ const solutions = [
     description:
       'Doctors cannot view your records without explicit, time-bound cryptographic permission from you. Revoke access anytime with one click.',
     Icon: FileKey,
-    iconColor: 'text-blue-400',
+    iconColor: 'text-primary',
     delay: 0.12,
   },
   {
@@ -25,7 +25,7 @@ const solutions = [
     description:
       'Insurance companies can instantly verify claims via blockchain hash. If it wasn\'t minted by a verified doctor, it doesn\'t pass.',
     Icon: ShieldCheck,
-    iconColor: 'text-emerald-400',
+    iconColor: 'text-primary',
     delay: 0.24,
   },
 ];
@@ -66,9 +66,9 @@ export function CoreFeaturesSection() {
           >
             <MagicCard
               className="h-full p-8 flex flex-col gap-5 rounded-2xl border border-border/60 bg-background"
-              gradientColor="rgba(0,0,0,0.04)"
-              gradientFrom="#818cf8"
-              gradientTo="#c084fc"
+              gradientColor="rgba(209, 224, 215, 0.1)"
+              gradientFrom="#D1E0D7"
+              gradientTo="#607EBC"
               gradientSize={180}
             >
               <div className="w-11 h-11 rounded-xl bg-muted/40 border border-border/40 flex items-center justify-center">

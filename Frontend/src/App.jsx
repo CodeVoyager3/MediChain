@@ -7,7 +7,6 @@ import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { MissionSection } from './components/MissionSection';
 import { ChallengesSection } from './components/ChallengesSection';
-import { CoreFeaturesSection } from './components/CoreFeaturesSection';
 import { PlatformEcosystemSection } from './components/PlatformEcosystemSection';
 import { StatsSection } from './components/StatsSection';
 import { ArchitectureSection } from './components/ArchitectureSection';
@@ -29,7 +28,6 @@ function LandingPage() {
             <div id="hero"><HeroSection /></div>
             <MissionSection />
             <ChallengesSection />
-            <CoreFeaturesSection />
             <PlatformEcosystemSection />
             <StatsSection />
             <ArchitectureSection />
@@ -37,12 +35,6 @@ function LandingPage() {
             <TestimonialsSection />
 
             <div className="relative w-full overflow-hidden bg-background">
-                <div
-                    className="absolute inset-x-0 bottom-0 h-full pointer-events-none"
-                    style={{
-                        background: 'radial-gradient(ellipse 80% 70% at 50% 65%, hsl(68 76% 64% / 0.1) 0%, transparent 60%)',
-                    }}
-                />
                 <CtaBannerSection />
                 <FooterSection />
             </div>

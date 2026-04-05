@@ -6,8 +6,8 @@ import { createThirdwebClient } from "thirdweb";
 import { ConnectButton } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 
-const client = createThirdwebClient({ 
-  clientId: import.meta.env.VITE_CLIENT_ID 
+const client = createThirdwebClient({
+  clientId: import.meta.env.VITE_CLIENT_ID
 });
 
 const wallets = [
@@ -33,9 +33,9 @@ export function CtaBannerSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground font-body tracking-widest uppercase"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-1.5 text-xs text-muted-foreground font-body tracking-widest uppercase shadow-sm"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
           Powered by Polygon
         </motion.div>
 
@@ -77,7 +77,7 @@ export function CtaBannerSection() {
             theme="light"
             connectModal={{ size: 'wide' }}
             connectButton={{ label: 'Connect Wallet' }}
-            className="inline-flex justify-center items-center rounded-full px-8 h-12 text-sm font-medium font-body bg-violet-500/85 text-white hover:bg-violet-500/90 transition-all duration-200"
+            className="inline-flex justify-center items-center rounded-full px-8 h-12 text-sm font-medium font-body bg-primary text-primary-foreground hover:opacity-90 transition-all duration-200 shadow-lg"
           />
 
           <button className="flex items-center gap-2 px-7 h-12 rounded-full border border-border text-muted-foreground text-sm font-body font-normal hover:border-foreground/45 hover:text-foreground transition-all duration-200">
