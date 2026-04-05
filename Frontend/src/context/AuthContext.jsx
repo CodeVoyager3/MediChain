@@ -52,12 +52,13 @@ export const AuthProvider = ({ children }) => {
       });
 
       // 4. Verify & Login
-      const { token, role } = await verifySignature(accountInstance.address, signature);
+      const { token } = await verifySignature(accountInstance.address, signature);
 
-      // 5. Store JWT and check if registration is needed
+      // 5. Store JWT and decode role from the token payload
       localStorage.setItem('medichain_jwt', token);
+      const role = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))?.role;
       
-      if (!role) {
+      if (!role || role === 'UNREGISTERED') {
         console.log("New user detected, showing registration modal.");
         setShowRegister(true);
         return null;

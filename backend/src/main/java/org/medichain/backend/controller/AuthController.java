@@ -44,7 +44,7 @@ public class AuthController {
 		try {
 			log.info("Verifying cryptographic signature for wallet: {}", request.getWalletAddress());
 			
-			Map<String, String> result = authService.verifySignatureAndIssueJwt(
+			String jwtToken = authService.verifySignatureAndIssueJwt(
 					request.getWalletAddress(),
 					request.getSignature()
 			);
@@ -52,8 +52,7 @@ public class AuthController {
 			return ResponseEntity.ok(Map.of(
 					"status", "success",
 					"message", "Authentication successful. Welcome to MediChain.",
-					"token", result.get("token"),
-					"role", result.get("role")
+					"token", jwtToken
 			));
 		} catch (Exception e) {
 			log.warn("Auth failed for {}: {}", request.getWalletAddress(), e.getMessage());
