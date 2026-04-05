@@ -1,114 +1,155 @@
-// In src/context/AuthContext.jsx
-
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useActiveAccount, useActiveWalletChain, useSwitchActiveWalletChain } from "thirdweb/react";
-import { signMessage } from "thirdweb/utils";
-import { polygonAmoy } from "thirdweb/chains";
-import { requestNonce, verifySignature, registerUser } from '../services/api';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useActiveAccount, useDisconnect, useActiveWalletChain, useSwitchActiveWalletChain } from 'thirdweb/react';
+import { polygonAmoy } from 'thirdweb/chains';
+import { signMessage } from 'thirdweb/utils';
+import { requestNonce, verifySignature, registerUser, getUserProfile } from '../services/api';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const JWT_KEY = 'medichain_jwt';
+const USER_KEY = 'medichain_user';
+const AMOY_CHAIN_ID = 80002;
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);       // { walletAddress, name, role }
+  const [token, setToken] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
-
-  // Use Thirdweb hooks to track state
+  const { disconnect } = useDisconnect();
   const account = useActiveAccount();
-  const activeChain = useActiveWalletChain();
-  const switchChain = useSwitchActiveWalletChain();
+  const chain = useActiveWalletChain();
+  const { switchChain } = useSwitchActiveWalletChain();
 
-  // Check token on mount
+  const isCorrectNetwork = chain?.id === AMOY_CHAIN_ID;
+
+  const isAuthenticated = !!token && !!user;
+
+  // ─── Hydrate from localStorage on mount ─────────────────
   useEffect(() => {
-    const token = localStorage.getItem('medichain_jwt');
-    const role = localStorage.getItem('role');
-    const address = localStorage.getItem('walletAddress');
-
-    if (token && role && address) {
-      setUser({ role, walletAddress: address });
+    try {
+      const savedToken = localStorage.getItem(JWT_KEY);
+      const savedUser = localStorage.getItem(USER_KEY);
+      if (savedToken && savedUser) {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      }
+    } catch {
+      localStorage.removeItem(JWT_KEY);
+      localStorage.removeItem(USER_KEY);
+    } finally {
+      setIsLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  const login = async (accountInstance, clientInstance) => {
-    try {
-      if (!accountInstance) throw new Error("No account connected");
+  // ─── Login: nonce → sign → verify → JWT ─────────────────
+  const login = useCallback(async (activeAccount, thirdwebClient) => {
+    if (!activeAccount) throw new Error('No active wallet account');
 
-      // 1. Enforce Network (Polygon Amoy Testnet)
-      if (activeChain?.id !== 80002) {
-        console.log("Wrong network detected. Attempting switch...");
+    const walletAddress = activeAccount.address;
+
+    // Step 0: Check network
+    if (chain?.id !== AMOY_CHAIN_ID) {
+      try {
         await switchChain(polygonAmoy);
+      } catch (err) {
+        throw new Error('Please switch to Polygon Amoy Testnet to continue.');
       }
-
-      console.log("Starting backend auth for:", accountInstance.address);
-
-      // 2. Get Nonce
-      const { nonce } = await requestNonce(accountInstance.address);
-
-      // 3. Sign Message
-      const signature = await signMessage({
-        message: nonce,
-        account: accountInstance,
-      });
-
-      // 4. Verify & Login
-      const { token, role } = await verifySignature(accountInstance.address, signature);
-
-      // 5. Store JWT and check if registration is needed
-      localStorage.setItem('medichain_jwt', token);
-      
-      if (!role) {
-        console.log("New user detected, showing registration modal.");
-        setShowRegister(true);
-        return null;
-      }
-
-      // 6. Complete profile storage
-      localStorage.setItem('role', role);
-      localStorage.setItem('walletAddress', accountInstance.address);
-
-      setUser({ role, walletAddress: accountInstance.address });
-
-      return role;
-    } catch (error) {
-      console.error("Auth flow error:", error);
-      logout(); // Ensure clean state if it fails mid-way
-      throw error;
     }
-  };
 
-  const register = async (name, role) => {
+    // Step 1: Request nonce from backend
+    const nonceRes = await requestNonce(walletAddress);
+    const messageToSign = nonceRes.messageToSign;
+
+    // Step 2: Sign the message with the user's wallet
+    const signature = await signMessage({
+      message: messageToSign,
+      account: activeAccount,
+    });
+
+    // Step 3: Send signature to backend → get JWT
+    const verifyRes = await verifySignature(walletAddress, signature);
+    const jwt = verifyRes.token;
+
+    // Step 4: Store JWT
+    localStorage.setItem(JWT_KEY, jwt);
+    setToken(jwt);
+
+    // Step 5: Fetch user profile
     try {
-      if (!account) throw new Error("Wallet not connected");
+      const profileRes = await getUserProfile(walletAddress);
+      const userData = profileRes.user;
 
-      await registerUser(name, role);
-      
-      localStorage.setItem('role', role);
-      localStorage.setItem('walletAddress', account.address);
-      
-      setUser({ role, walletAddress: account.address });
-      setShowRegister(false);
-      
-      return role;
-    } catch (error) {
-      console.error("Registration failed:", error);
-      throw error;
+      if (userData.role === 'UNREGISTERED') {
+        // First time user — needs to complete registration
+        setUser({ walletAddress, name: null, role: 'UNREGISTERED' });
+        localStorage.setItem(USER_KEY, JSON.stringify({ walletAddress, name: null, role: 'UNREGISTERED' }));
+        setShowRegister(true);
+        return { role: 'UNREGISTERED' };
+      }
+
+      const fullUser = {
+        walletAddress: userData.walletAddress,
+        name: userData.name,
+        role: userData.role,
+      };
+      setUser(fullUser);
+      localStorage.setItem(USER_KEY, JSON.stringify(fullUser));
+      return fullUser;
+    } catch {
+      // Profile fetch failed, treat as unregistered
+      setUser({ walletAddress, name: null, role: 'UNREGISTERED' });
+      localStorage.setItem(USER_KEY, JSON.stringify({ walletAddress, name: null, role: 'UNREGISTERED' }));
+      setShowRegister(true);
+      return { role: 'UNREGISTERED' };
     }
-  };
+  }, []);
 
-  const logout = () => {
-    localStorage.removeItem('medichain_jwt');
-    localStorage.removeItem('role');
-    localStorage.removeItem('walletAddress');
+  // ─── Register: complete profile ─────────────────────────
+  const register = useCallback(async (name, role) => {
+    const res = await registerUser(name, role);
+    const updatedUser = {
+      walletAddress: res.user.walletAddress,
+      name: res.user.name,
+      role: res.user.role,
+    };
+    setUser(updatedUser);
+    localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+    setShowRegister(false);
+    return updatedUser;
+  }, []);
+
+  // ─── Logout ─────────────────────────────────────────────
+  const logout = useCallback(() => {
+    localStorage.removeItem(JWT_KEY);
+    localStorage.removeItem(USER_KEY);
+    setToken(null);
     setUser(null);
     setShowRegister(false);
+    // Disconnect the Thirdweb wallet
+    if (disconnect) {
+      try { disconnect(); } catch { /* ignore */ }
+    }
+  }, [disconnect]);
+
+  const value = {
+    user,
+    token,
+    isAuthenticated,
+    isLoading,
+    showRegister,
+    setShowRegister,
+    login,
+    register,
+    logout,
+    isCorrectNetwork,
+    switchNetwork: () => switchChain(polygonAmoy),
   };
 
-  return (
-    <AuthContext.Provider value={{ user, login, logout, register, loading, showRegister, setShowRegister, isAuthenticated: !!user }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+}
