@@ -22,6 +22,8 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { Bar } from 'react-chartjs-2';
 
 import { useAuth } from '../../context/AuthContext';
+import { useTransaction } from '../../hooks/useTransaction';
+import { TransactionModal } from '../ui/transaction-modal';
 import { getPatientVault, grantAccess, revokeAccess, checkInToClinic } from '../../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -304,7 +306,7 @@ function GrantAccessModal({ open, onClose, records }) {
                         <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 block">Doctor Wallet Address</label>
                         <input type="text" value={doctorAddr} onChange={e => setDoctorAddr(e.target.value)} placeholder="0x..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/40" />
                     </div>
-                    {records.length > 0 && (
+                    {records.length > 0 ? (
                         <div>
                             <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Select Records</label>
                             <div className="max-h-32 overflow-y-auto space-y-1">
@@ -315,6 +317,12 @@ function GrantAccessModal({ open, onClose, records }) {
                                     </label>
                                 ))}
                             </div>
+                        </div>
+                    ) : (
+                        <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl mt-2">
+                            <p className="text-amber-400 text-[11px] text-center leading-relaxed">
+                                You currently have <strong className="text-amber-300 font-bold tracking-wide">0</strong> mints in your wallet. Wait for your assigned doctor to issue a clinical record before granting access.
+                            </p>
                         </div>
                     )}
                     <div>
@@ -396,17 +404,6 @@ export default function PatientDashboard() {
     }, []);
 
     useEffect(() => { fetchGrants(); }, [fetchGrants]);
-
-    const handleRevoke = async (doctorAddress, recordId) => {
-        tx.startTransaction('Revoking Access…');
-        try {
-            await revokeAccess(doctorAddress, recordId);
-            tx.setConfirmed();
-            fetchGrants(); // Refresh
-        } catch (err) {
-            tx.setFailed(err);
-        }
-    };
 
     // Derived data
     const totalRecords = records.length;
@@ -579,7 +576,9 @@ export default function PatientDashboard() {
                                     </div>
 
                                     <div className="flex gap-2 mb-5">
-                                        <ShimmerButton className="flex-1 py-[10px] rounded-xl active:scale-[0.98] shadow-md border-none flex"
+                                        <ShimmerButton 
+                                            onClick={() => alert("Restricted Action: Only verified Healthcare Providers can mint and upload official medical records to your wallet. Please consult your Doctor.")}
+                                            className="flex-1 py-[10px] rounded-xl active:scale-[0.98] shadow-md border-none flex"
                                             background='hsl(var(--accent))' shimmerColor="#FFD6E8">
                                             <span className="flex items-center justify-center gap-1.5 text-[12px] font-semibold text-background">
                                                 <Upload className="w-3.5 h-3.5" />
@@ -897,13 +896,6 @@ export default function PatientDashboard() {
                 records={records}
             />
 
-            <TransactionModal 
-                state={tx.txState} 
-                onClose={tx.reset} 
-                title={tx.txTitle} 
-                txHash={tx.txHash} 
-                error={tx.txError} 
-            />
         </div>
     );
 }

@@ -58,7 +58,7 @@ export function Navbar() {
         })
         .catch((err) => {
           console.error('Backend auth failed:', err);
-          setHasTriedLogin(false);
+          // Deliberately NOT resetting hasTriedLogin so we don't trap the user in an infinite loop
         });
     }
   }, [account, isAuthenticated, hasTriedLogin, login, navigate]);

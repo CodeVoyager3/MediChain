@@ -30,6 +30,8 @@ import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 
 import { useAuth } from '../../context/AuthContext';
+import { useTransaction } from '../../hooks/useTransaction';
+import { TransactionModal } from '../ui/transaction-modal';
 import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, amendRecord } from '../../services/api';
 
 const NAV = {

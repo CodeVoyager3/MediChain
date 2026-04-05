@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useActiveAccount, useDisconnect, useActiveWalletChain, useSwitchActiveWalletChain } from 'thirdweb/react';
+import { useActiveAccount, useDisconnect, useActiveWalletChain, useSwitchActiveWalletChain, useActiveWallet } from 'thirdweb/react';
 import { polygonAmoy } from 'thirdweb/chains';
 import { signMessage } from 'thirdweb/utils';
 import { requestNonce, verifySignature, registerUser, getUserProfile } from '../services/api';
@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
   const [showRegister, setShowRegister] = useState(false);
   const { disconnect } = useDisconnect();
   const account = useActiveAccount();
+  const activeWallet = useActiveWallet();
   const chain = useActiveWalletChain();
   const { switchChain } = useSwitchActiveWalletChain();
 
@@ -47,12 +48,12 @@ export function AuthProvider({ children }) {
 
     const walletAddress = activeAccount.address;
 
-    // Step 0: Check network
-    if (chain?.id !== AMOY_CHAIN_ID) {
+    // Step 0: Check network (In-App wallets can throw when switching, so we catch and proceed)
+    if (chain && chain.id !== AMOY_CHAIN_ID && switchChain) {
       try {
         await switchChain(polygonAmoy);
       } catch (err) {
-        throw new Error('Please switch to Polygon Amoy Testnet to continue.');
+        console.warn('Network switch failed (safe to ignore for in-app wallets):', err);
       }
     }
 
@@ -125,11 +126,11 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
     setShowRegister(false);
-    // Disconnect the Thirdweb wallet
-    if (disconnect) {
-      try { disconnect(); } catch { /* ignore */ }
+    // Disconnect the Thirdweb wallet properly in v5
+    if (activeWallet && disconnect) {
+      try { disconnect(activeWallet); } catch { /* ignore */ }
     }
-  }, [disconnect]);
+  }, [disconnect, activeWallet]);
 
   const value = {
     user,
