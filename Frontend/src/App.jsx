@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Navbar } from './components/Navbar';
+import Navbar from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { MissionSection } from './components/MissionSection';
 import { ChallengesSection } from './components/ChallengesSection';

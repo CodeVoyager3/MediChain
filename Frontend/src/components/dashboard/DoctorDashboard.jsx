@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { createThirdwebClient } from "thirdweb";
+import { client } from '../../main';
 import { upload } from "thirdweb/storage";
-
-const client = createThirdwebClient({
-    clientId: import.meta.env.VITE_CLIENT_ID,
-});
 
 import {
     LayoutDashboard, Users, Clock, Settings, LogOut,

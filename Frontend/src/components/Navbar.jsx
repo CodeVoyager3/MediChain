@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Loader2 } from 'lucide-react';
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 import { createThirdwebClient } from "thirdweb";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ConnectButton, useActiveAccount, useActiveWalletChain } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
+import { polygonAmoy } from "thirdweb/chains";
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Button } from './ui/button';
 
 const navLinks = [
   { label: 'About', href: '#about' },
@@ -16,8 +18,8 @@ const navLinks = [
   { label: 'Docs', href: '#' },
 ];
 
-const client = createThirdwebClient({ 
-  clientId: import.meta.env.VITE_CLIENT_ID 
+const client = createThirdwebClient({
+  clientId: import.meta.env.VITE_CLIENT_ID
 });
 
 const wallets = [
@@ -30,58 +32,70 @@ const wallets = [
   }),
 ];
 
-export function Navbar() {
+export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { login, isAuthenticated, user } = useAuth();
-  const account = useActiveAccount();
-  const navigate = useNavigate();
-  const [hasTriedLogin, setHasTriedLogin] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  const { login, logout, isAuthenticated, user } = useAuth();
+  const account = useActiveAccount();
+  const activeChain = useActiveWalletChain();
+  const navigate = useNavigate();
+
+  // Scroll effect
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // When a wallet connects AND we haven't authenticated yet, trigger backend auth
+  // If wallet disconnects, clear backend session
   useEffect(() => {
-    if (account && !isAuthenticated && !hasTriedLogin) {
-      setHasTriedLogin(true);
-      login(account, client)
-        .then((result) => {
-          if (result && result.role && result.role !== 'UNREGISTERED') {
-            const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
-            navigate(roleRoutes[result.role] || '/');
-          }
-          // If UNREGISTERED, the RegisterModal will appear via AuthContext
-        })
-        .catch((err) => {
-          console.error('Backend auth failed:', err);
-          setHasTriedLogin(false);
-        });
+    if (!account && isAuthenticated) {
+      logout();
+      navigate('/');
     }
-  }, [account, isAuthenticated, hasTriedLogin, login, navigate]);
+  }, [account, isAuthenticated, logout, navigate]);
 
-  // If user completes registration, redirect them
-  useEffect(() => {
-    if (isAuthenticated && user?.role && user.role !== 'UNREGISTERED') {
-      const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
-      const target = roleRoutes[user.role];
-      if (target) navigate(target);
+  // NEW LOGIC: Handle Backend Authentication Explicitly
+  const handleBackendLogin = async () => {
+    if (!account) return;
+
+    setIsAuthenticating(true);
+    try {
+      // 1. Check network first before trying to log in
+      if (activeChain?.id !== polygonAmoy.id) {
+        alert("Please switch to the Polygon Amoy Testnet in your wallet first.");
+        setIsAuthenticating(false);
+        return;
+      }
+
+      const role = await login(account, client);
+
+      // 2. Route based on role
+      if (role && role !== 'UNREGISTERED') {
+        const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
+        navigate(roleRoutes[role] || '/');
+      }
+      // If UNREGISTERED, RegisterModal handles it via AuthContext
+
+    } catch (error) {
+      console.error("Backend auth failed:", error);
+    } finally {
+      setIsAuthenticating(false);
     }
-  }, [isAuthenticated, user?.role, navigate]);
+  };
 
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
             ? 'py-3 bg-white/90 backdrop-blur-xl border-b border-black/5 shadow-sm dark:bg-background/80 dark:border-border/60'
             : 'py-4 bg-white/70 backdrop-blur-md border-b border-black/5 dark:bg-background/40 dark:border-border/40'
-        }`}
+          }`}
       >
         <div className="max-w-6xl mx-auto px-5 md:px-10 flex items-center justify-between">
+
           {/* Logo */}
           <a href="#" className="flex items-center">
             <img src="/logo.png" alt="MediChain Logo" className="h-[2.5rem] md:h-12 w-auto object-contain" />
@@ -104,13 +118,29 @@ export function Navbar() {
           {/* Right side: theme toggle + CTA */}
           <div className="hidden md:flex items-center gap-3">
             <AnimatedThemeToggler />
+
+            {/* Show Sign In button if connected to wallet but not authenticated with backend */}
+            {account && !isAuthenticated && (
+              <Button
+                onClick={handleBackendLogin}
+                disabled={isAuthenticating}
+                className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-5 text-[0.8rem] font-body font-medium h-[44px]"
+              >
+                {isAuthenticating ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing In...</>
+                ) : (
+                  "Sign In to Dashboard"
+                )}
+              </Button>
+            )}
+
             <ConnectButton
               client={client}
               wallets={wallets}
               theme="light"
               connectModal={{ size: 'wide' }}
               connectButton={{ label: 'Connect Wallet' }}
-              className="inline-flex items-center gap-1.5 text-[0.8rem] font-body px-5 py-2.5 rounded-full font-medium bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-all duration-200 hover:-translate-y-px"
+              autoConnect={isAuthenticated}
             />
           </div>
 
@@ -149,15 +179,35 @@ export function Navbar() {
                   </a>
                 </li>
               ))}
-              <li>
-                <ConnectButton
-                  client={client}
-                  wallets={wallets}
-                  theme="light"
-                  connectModal={{ size: 'wide' }}
-                  connectButton={{ label: 'Connect Wallet' }}
-                  className="inline-flex items-center gap-1.5 text-sm font-body px-5 py-2.5 rounded-full bg-black text-white dark:bg-white dark:text-black font-medium"
-                />
+
+              <li className="flex flex-col gap-3 pt-2 border-t border-border/40">
+                {account && !isAuthenticated && (
+                  <Button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      handleBackendLogin();
+                    }}
+                    disabled={isAuthenticating}
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-full h-[44px]"
+                  >
+                    {isAuthenticating ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing In...</>
+                    ) : (
+                      "Sign In to Dashboard"
+                    )}
+                  </Button>
+                )}
+
+                <div className="w-full flex justify-center">
+                  <ConnectButton
+                    client={client}
+                    wallets={wallets}
+                    theme="light"
+                    connectModal={{ size: 'wide' }}
+                    connectButton={{ label: 'Connect Wallet' }}
+                    autoConnect={isAuthenticated}
+                  />
+                </div>
               </li>
             </ul>
           </motion.div>

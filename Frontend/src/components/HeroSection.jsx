@@ -3,13 +3,9 @@ import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
 import { Button } from './ui/button';
 import DashboardPreview from './DashboardPreview';
-import { createThirdwebClient } from "thirdweb";
+import { client } from '../main';
 import { ConnectButton } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
-
-const client = createThirdwebClient({ 
-  clientId: import.meta.env.VITE_CLIENT_ID 
-});
 
 const wallets = [
   createWallet("io.metamask"),
