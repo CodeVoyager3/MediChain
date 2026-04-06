@@ -6,7 +6,7 @@ const footerLinks = [
   { label: 'How It Works', href: '#how' },
   { label: 'Features', href: '#features' },
   { label: 'Patient Stories', href: '#stories' },
-  { label: 'Docs', href: '#' },
+  { label: 'Docs', href: '#docs' },
   { label: 'Privacy', href: '#' },
   { label: 'Contact', href: '#' },
 ];
@@ -67,7 +67,7 @@ export function FooterSection() {
             © 2026 MediChain. All records are patient-owned.
           </span>
           <div className="flex items-center gap-2 border border-border/60 bg-background/50 rounded-full px-3 py-1.5 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             <span className="text-[0.7rem] font-body text-muted-foreground">Built on Polygon</span>
           </div>
         </div>

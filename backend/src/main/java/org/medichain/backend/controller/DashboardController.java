@@ -79,4 +79,24 @@ public class DashboardController {
 			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
 		}
 	}
+	
+	@GetMapping("/patient/check-in-status")
+	public ResponseEntity<?> getCheckInStatus() {
+		try {
+			var checkIn = dashboardService.getPatientActiveCheckIn(getAuthenticatedWallet());
+			return ResponseEntity.ok(Map.of("status", "success", "data", checkIn != null ? checkIn : ""));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+		}
+	}
+	
+	@PostMapping("/patient/leave-room")
+	public ResponseEntity<?> leaveWaitingRoom() {
+		try {
+			dashboardService.leaveWaitingRoom(getAuthenticatedWallet());
+			return ResponseEntity.ok(Map.of("status", "success", "message", "Left the waiting room."));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+		}
+	}
 }

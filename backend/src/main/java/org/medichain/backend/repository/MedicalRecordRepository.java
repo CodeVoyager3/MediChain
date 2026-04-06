@@ -13,4 +13,6 @@ public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, Lo
 	
 	// Optional: Fetch all records issued by a specific doctor
 	List<MedicalRecord> findByDoctorAddressIgnoreCase(String doctorAddress);
+	
+	List<MedicalRecord> findByDoctorAddressIgnoreCaseAndPatientAddressIgnoreCase(String doctorAddress, String patientAddress);
 }

@@ -1,117 +1,481 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Database, Lock, ShieldAlert, FileWarning } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Database, Lock, ShieldAlert, FileWarning, Hospital, Activity, Syringe, HeartPulse } from 'lucide-react';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 
-const containerVariants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.12 },
-  },
-};
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 32, scale: 0.97 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] },
-  },
-};
-
-const problems = [
-  {
-    name: 'Fragmented Data',
-    description:
-      "Patient history is scattered across different hospitals' centralized databases, leading to incomplete, inaccessible records at the point of care.",
-    Icon: Database,
-    accent: 'from-rose-500/8 to-transparent',
-    iconColor: 'text-rose-400',
-    span: 'md:col-span-2',
-  },
-  {
-    name: 'No Patient Control',
-    description:
-      'Patients do not truly "own" their records—hospitals do. You need permission to access your own history.',
-    Icon: Lock,
-    accent: 'from-orange-400/8 to-transparent',
-    iconColor: 'text-orange-400',
-    span: 'md:col-span-1',
-  },
-  {
-    name: 'Security & Privacy',
-    description:
-      'Centralized databases are honeypots for data breaches and unauthorized third-party access.',
-    Icon: ShieldAlert,
-    accent: 'from-amber-400/8 to-transparent',
-    iconColor: 'text-amber-400',
-    span: 'md:col-span-1',
-  },
-  {
-    name: 'Insurance Fraud',
-    description:
-      'Fabricated prescriptions and manipulated billing cost the insurance industry billions every year with no reliable verification mechanism.',
-    Icon: FileWarning,
-    accent: 'from-red-500/8 to-transparent',
-    iconColor: 'text-red-400',
-    span: 'md:col-span-2',
-  },
-];
-
-export function ChallengesSection() {
+const ChallengesSection = () => {
   return (
-    <section className="w-full bg-background py-24 px-6 flex justify-center">
-      <div className="w-full max-w-5xl">
-        {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.6 }}
-          className="mb-14 text-center"
-        >
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground font-body tracking-widest uppercase mb-5">
-            Current Challenges
-          </div>
-          <h2 className="font-display text-4xl md:text-5xl text-foreground leading-tight">
-            Current Healthcare is{' '}
-            <span className="italic">Broken</span>
-          </h2>
-        </motion.div>
+    <section id="challenges" className="relative flex min-h-screen items-center justify-center overflow-x-hidden bg-background py-20 px-6 font-sans text-foreground md:p-10 lg:p-12">
+      <div className="mx-auto w-full max-w-7xl">
+        
+        {/* Section Header */}
+        <div className="text-center mb-16 max-w-2xl mx-auto">
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="font-display text-4xl md:text-5xl lg:text-6xl text-foreground tracking-tight mb-4"
+          >
+            The Healthcare System is Broken.
+          </motion.h2>
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-lg text-muted-foreground font-body"
+          >
+            Traditional systems rely on centralized silos, stripping patients of control and costing billions in fraud and redundancies. Here is what we are fixing.
+          </motion.p>
+        </div>
 
-        {/* Grid */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.15 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-        >
-          {problems.map((p) => (
-            <motion.div
-              key={p.name}
-              variants={cardVariants}
-              className={`group relative overflow-hidden rounded-2xl border border-border/60 bg-background p-7 flex flex-col gap-4 cursor-default
-                hover:border-border transition-all duration-300 hover:shadow-lg ${p.span}`}
-            >
-              {/* Accent glow */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${p.accent} pointer-events-none`} />
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-foreground/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+          
+          {/* Card 1: Fragmented Data (Large Top Left) */}
+          <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-0 text-foreground shadow-2xl ring-0 transition-all duration-300 hover:border-border/80 md:col-span-12 lg:col-span-7 md:lg:rounded-tl-[40px]">
+            <CardContent className="relative flex w-full flex-1 flex-col items-center justify-center p-0 md:max-h-[320px]">
+              <Card1 />
+            </CardContent>
 
-              <div className={`relative w-10 h-10 rounded-xl bg-muted/40 border border-border/40 flex items-center justify-center
-                group-hover:scale-110 transition-transform duration-300`}>
-                <p.Icon className={`w-5 h-5 ${p.iconColor}`} />
-              </div>
+            <CardFooter className="relative z-10 flex w-full flex-col border-none bg-transparent bg-gradient-to-t from-background via-background/90 to-transparent p-6 pt-12 pb-8 text-center sm:p-6 sm:pt-0">
+              <h3 className="mb-2 text-2xl font-bold font-display">Fragmented Data Silos</h3>
+              <p className="mx-auto max-w-sm text-sm text-muted-foreground font-body">
+                Patient history is scattered across different hospitals. 70% of Indian patients cannot produce a complete medical history at the point of care.
+              </p>
+            </CardFooter>
+          </Card>
 
-              <div className="relative">
-                <h3 className="font-display text-xl text-foreground mb-2">{p.name}</h3>
-                <p className="text-sm font-body text-muted-foreground leading-relaxed">{p.description}</p>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
+          {/* Card 2: No Data Ownership (Top Right) */}
+          <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-0 text-foreground shadow-2xl ring-0 transition-all duration-300 hover:border-border/80 md:col-span-12 lg:col-span-5 md:lg:rounded-tr-[40px]">
+            <CardContent className="relative flex min-h-[300px] w-full flex-1 flex-col items-center justify-center p-0 md:min-h-[320px]">
+              <Card2 />
+            </CardContent>
+
+            <CardFooter className="relative z-10 flex w-full flex-col border-none bg-gradient-to-t from-background via-background/90 to-transparent p-6 pb-8 text-center">
+              <h3 className="mb-2 text-2xl font-bold font-display">Zero Patient Control</h3>
+              <p className="mx-auto max-w-sm text-sm text-muted-foreground font-body">
+                Patients do not truly "own" their records—hospitals do. You need permission to access your own personal history.
+              </p>
+            </CardFooter>
+          </Card>
+
+          {/* Card 3: Vulnerable DBs (Bottom Left) */}
+          <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-0 text-foreground shadow-xl ring-0 transition-all duration-300 hover:border-border/80 md:col-span-6 lg:col-span-4 md:lg:rounded-bl-[40px]">
+            <CardContent className="flex min-h-[240px] w-full flex-1 flex-col items-center justify-center py-6 md:min-h-[280px]">
+              <Card3 />
+            </CardContent>
+            <CardFooter className="mt-auto flex w-full flex-col border-none bg-transparent p-6 pb-8 text-center">
+              <h3 className="mb-2 text-xl font-bold font-display">Centralized Honeypots</h3>
+              <p className="mx-auto max-w-[220px] text-sm text-muted-foreground font-body">
+                Centralized databases are prime targets. Healthcare breaches increased by 256% over the last five years.
+              </p>
+            </CardFooter>
+          </Card>
+
+          {/* Card 4: Ecosystem Connection (Bottom Middle) */}
+          <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-0 text-foreground shadow-xl ring-0 transition-all duration-300 hover:border-border/80 md:col-span-6 lg:col-span-4">
+            <CardContent className="relative flex min-h-[240px] w-full flex-1 flex-col items-center justify-center p-0 md:min-h-[280px]">
+              <Card4 />
+            </CardContent>
+            <CardFooter className="mt-auto flex w-full flex-col border-none bg-transparent p-6 pb-8 text-center">
+              <h3 className="mb-2 text-xl font-bold font-display">Interoperability Failure</h3>
+              <p className="mx-auto max-w-[220px] text-sm text-muted-foreground font-body">
+                Systems refuse to talk to each other. MediChain unites patients, doctors, and insurers on a single truth.
+              </p>
+            </CardFooter>
+          </Card>
+
+          {/* Card 5: Insurance Fraud (Bottom Right) */}
+          <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-0 text-foreground shadow-xl ring-0 transition-all duration-300 hover:border-border/80 md:col-span-12 lg:col-span-4 md:lg:rounded-br-[40px]">
+            <CardContent className="relative flex min-h-[240px] w-full flex-1 flex-col items-center justify-center p-8 py-6 md:min-h-[280px]">
+              <Card5 />
+            </CardContent>
+            <CardFooter className="flex w-full flex-col border-none bg-transparent p-6 pb-8 text-center">
+              <h3 className="mb-2 text-xl font-bold font-display">Insurance Fraud</h3>
+              <p className="mx-auto max-w-[260px] text-sm text-muted-foreground font-body">
+                Fabricated bills and forged prescriptions cost the insurance industry billions globally every single year.
+              </p>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+
+      {/* Background Subtle Effects */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-[20%] left-[10%] h-[400px] w-[400px] rounded-full bg-primary/5 blur-[120px]" />
+        <div className="absolute right-[10%] bottom-[20%] h-[350px] w-[350px] rounded-full bg-accent/5 blur-[120px]" />
       </div>
     </section>
   );
-}
+};
+
+export { ChallengesSection };
+
+/* -------------------------------------------------------------------------- */
+/* Sub-components for Cards                                                   */
+/* -------------------------------------------------------------------------- */
+
+const Card1 = () => {
+  const [activeTab, setActiveTab] = useState('current');
+
+  return (
+    <div
+      className="h-full w-[92%] translate-y-6 transform overflow-hidden rounded-tl-xl rounded-tr-xl border-x border-t border-border/40 bg-card mask-b-from-90% md:w-[85%]"
+      onMouseEnter={() => setActiveTab('medichain')}
+      onMouseLeave={() => setActiveTab('current')}
+    >
+      <div className="flex h-10 w-full items-center justify-start gap-2 border-b border-border/40 pl-4">
+        <span className="size-2 rounded-full bg-border/40" />
+        <span className="size-2 rounded-full bg-border/40" />
+        <span className="size-2 rounded-full bg-border/40" />
+      </div>
+
+      <div className="flex h-12 w-full items-center justify-between gap-2 border-b border-border/40 px-4 md:px-6">
+        <div className="flex shrink-0 items-center justify-center gap-2">
+          <Database className="size-5 text-primary md:size-6" />
+          <p className="text-base font-semibold text-primary md:text-lg font-display">
+            Record Retrieval
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 px-4 py-2 md:gap-5 md:px-6 border-b border-border/20">
+        <button
+          className={`border-b-2 py-1 text-xs font-semibold font-body transition-all duration-300 md:text-sm ${
+            activeTab === 'current'
+              ? 'border-rose-500 text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground/80'
+          }`}
+        >
+          Traditional System
+        </button>
+        <button
+          className={`border-b-2 py-1 text-xs font-semibold font-body transition-all duration-300 md:text-sm ${
+            activeTab === 'medichain'
+              ? 'border-emerald-500 text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground/80'
+          }`}
+        >
+          MediChain Vault
+        </button>
+      </div>
+
+      <div className="flex h-[150px] w-full flex-col px-4 pt-2 pb-4 md:h-[180px] md:px-6">
+        <AnimatePresence mode="wait">
+          {activeTab === 'current' ? (
+            <motion.div
+              key="current"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="flex flex-col items-start justify-center gap-4 h-full"
+            >
+              <div className="flex items-center gap-3 w-full p-3 rounded-lg border border-rose-500/20 bg-rose-500/5">
+                 <Hospital className="text-rose-500 w-5 h-5" />
+                 <div>
+                    <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">Apollo Hospital DB</p>
+                    <p className="text-sm text-muted-foreground">Blood Test 2024 - <span className="text-xs italic">Inaccessible</span></p>
+                 </div>
+              </div>
+              <div className="flex items-center gap-3 w-full p-3 rounded-lg border border-rose-500/20 bg-rose-500/5">
+                 <Activity className="text-rose-500 w-5 h-5" />
+                 <div>
+                    <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">City Clinic Server</p>
+                    <p className="text-sm text-muted-foreground">MRI Scan 2025 - <span className="text-xs italic">Inaccessible</span></p>
+                 </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="medichain"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="flex flex-col items-center justify-center gap-4 h-full"
+            >
+              <div className="flex items-center gap-3 w-full p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 shadow-inner">
+                 <div className="p-2 bg-emerald-500/20 rounded-md">
+                   <Database className="text-emerald-500 w-6 h-6" />
+                 </div>
+                 <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                        <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Patient Web3 Wallet</p>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Synced</span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">All records securely fetched from IPFS via Polygon Smart Contract.</p>
+                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+
+const lines = [
+  "// Centralized server vulnerability",
+  "",
+  "const hospitalDB = {",
+  "  status: 'vulnerable',",
+  "  encryption: 'standard',",
+  "  patientData: 'exposed'",
+  "};",
+  "",
+  "> Ransomware attack detected.",
+  "> Database compromised..."
+];
+
+const typingSpeed = 40; 
+const lineDelay = 600;  
+const restartDelay = 1500;
+
+const Card2 = () => {
+  const [displayedLines, setDisplayedLines] = useState([""]);
+  const [currentLine, setCurrentLine] = useState(0);
+  const [currentChar, setCurrentChar] = useState(0);
+
+  useEffect(() => {
+    if (currentLine >= lines.length) {
+      const timeout = setTimeout(() => {
+        setDisplayedLines([""]);
+        setCurrentLine(0);
+        setCurrentChar(0);
+      }, restartDelay);
+      return () => clearTimeout(timeout);
+    }
+
+    if (currentChar < lines[currentLine].length) {
+      const timeout = setTimeout(() => {
+        setDisplayedLines((prev) => {
+          const updated = [...prev];
+          updated[currentLine] =
+            (updated[currentLine] || "") +
+            lines[currentLine][currentChar];
+          return updated;
+        });
+        setCurrentChar((c) => c + 1);
+      }, typingSpeed);
+      return () => clearTimeout(timeout);
+    } else {
+      const timeout = setTimeout(() => {
+        setDisplayedLines((prev) => [...prev, ""]);
+        setCurrentLine((l) => l + 1);
+        setCurrentChar(0);
+      }, lineDelay);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentChar, currentLine]);
+
+  return (
+    <div className="flex h-60 sm:h-70 w-80 md:w-110 flex-col rounded-t-xl border-x border-t border-border/40 bg-[#0E1419] mask-b-from-90%">
+      <div className="flex w-full items-center justify-between px-8 border-b border-border/40 py-1">
+        <div className="flex items-center gap-2 py-2">
+          <Lock className="size-4 text-rose-400" />
+          <span className="font-mono text-xs text-rose-400/80">
+            security_alert.log
+          </span>
+        </div>
+      </div>
+      <div className="w-full flex flex-col gap-1 sm:gap-2 p-6 font-mono text-sm">
+        {displayedLines.map((line, index) => (
+          <div key={index} className="flex gap-6">
+            <span className="text-zinc-600">{index + 1}</span>
+            <p className={line.includes('>') ? "text-rose-400 font-bold" : "text-emerald-400/80"}>
+              {line}
+              {index === displayedLines.length - 1 && (
+                <motion.span
+                  className="inline-block w-2 h-4 bg-zinc-400 ml-1"
+                  animate={{ opacity: [0, 1, 0] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                />
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const Card3 = () => {
+  return (
+    <ShieldAlert className="size-40 text-rose-500/20 transition-all duration-300 ease-out hover:size-45 hover:text-rose-500" />
+  );
+};
+
+const Card5 = () => {
+  const items = [
+    { title: 'Fabricated Bills', desc: 'Hospitals inflating patient charges.' },
+    { title: 'Forged Prescriptions', desc: 'Invalid claims submitted for payout.' },
+    { title: 'Identity Theft', desc: 'Treatments claimed under stolen IDs.' },
+  ];
+
+  return (
+    <div className="relative w-full max-w-[280px] px-4">
+      <div className="absolute top-4 bottom-4 left-[24px] w-px bg-border/40" />
+
+      <motion.div
+        className="absolute left-[24px] z-0 h-16 w-px bg-gradient-to-b from-transparent via-rose-500 to-transparent"
+        animate={{
+          top: ['-5%', '85%'],
+          opacity: [0, 1, 1, 0],
+        }}
+        transition={{
+          duration: 3,
+          repeat: Infinity,
+          ease: 'linear',
+        }}
+      />
+
+      <div className="space-y-4">
+        {items.map((item, i) => (
+          <TimelineItem key={i} index={i} title={item.title} desc={item.desc} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const TimelineItem = ({ index, title, desc }) => {
+  const syncDelay = index * 1.5;
+  const syncDuration = 2;
+
+  return (
+    <div className="group relative flex items-center gap-6">
+      <div className="relative shrink-0">
+        <motion.div
+          className="relative z-10 size-4 rounded-full bg-rose-600"
+          animate={{
+            scale: [1, 1.2, 1],
+            boxShadow: [
+              '0 0 10px rgba(225, 29, 72, 0.4)',
+              '0 0 20px rgba(225, 29, 72, 0.8)',
+              '0 0 10px rgba(225, 29, 72, 0.4)',
+            ],
+          }}
+          transition={{
+            duration: syncDuration,
+            repeat: Infinity,
+            delay: syncDelay,
+            ease: 'easeInOut',
+          }}
+        />
+        <motion.div
+          className="absolute inset-0 size-4 rounded-full border border-rose-500/50"
+          animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
+          transition={{
+            duration: syncDuration,
+            repeat: Infinity,
+            delay: syncDelay,
+            ease: 'easeOut',
+          }}
+        />
+      </div>
+
+      <div className="group relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border/40 bg-card/50 p-3 backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-0 bg-rose-500/5" />
+        <span className="z-10 mb-1 text-sm font-bold text-foreground">
+          {title}
+        </span>
+        <span className="z-10 text-[11px] leading-relaxed font-medium text-muted-foreground">
+          {desc}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// Generic Icons for Orbiting Network
+const NetworkIcon1 = ({className}) => <Hospital className={className} />;
+const NetworkIcon2 = ({className}) => <Activity className={className} />;
+const NetworkIcon3 = ({className}) => <Syringe className={className} />;
+const NetworkIcon4 = ({className}) => <HeartPulse className={className} />;
+const NetworkIcon5 = ({className}) => <FileWarning className={className} />;
+
+const Card4 = () => {
+  const icons = [
+    { component: NetworkIcon1, color: '#3b82f6' },
+    { component: NetworkIcon2, color: '#10b981' },
+    { component: NetworkIcon3, color: '#f59e0b' },
+    { component: NetworkIcon4, color: '#ef4444' },
+    { component: NetworkIcon5, color: '#8b5cf6' },
+  ];
+
+  return (
+    <div className="relative flex h-[260px] w-full items-center justify-center overflow-hidden select-none">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="size-[180px] rounded-full border border-border/40" />
+        <div className="absolute size-[110px] rounded-full border border-border/20" />
+        <div className="absolute size-40 rounded-full bg-primary/10 blur-[60px]" />
+      </div>
+
+      <motion.div
+        className="relative z-10"
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <div className="bg-primary p-4 rounded-xl shadow-lg shadow-primary/20">
+            <span className="font-bold text-primary-foreground font-display tracking-tight text-xl">MediChain</span>
+        </div>
+      </motion.div>
+
+      <div className="absolute inset-0 flex items-center justify-center">
+        {icons.map((item, i) => (
+          <OrbitingElement
+            key={i}
+            index={i}
+            total={icons.length}
+            IconComponent={item.component}
+            color={item.color}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const OrbitingElement = ({ index, total, IconComponent, color }) => {
+  const [radius, setRadius] = useState(105);
+
+  useEffect(() => {
+    const updateRadius = () => {
+      setRadius(window.innerWidth < 640 ? 70 : 90);
+    };
+    updateRadius();
+    window.addEventListener('resize', updateRadius);
+    return () => window.removeEventListener('resize', updateRadius);
+  }, []);
+
+  const initialAngle = (index / total) * 360;
+  const duration = 25; // Slowed down slightly for calmer effect
+
+  return (
+    <motion.div
+      className="absolute flex items-center justify-center"
+      animate={{ rotate: [initialAngle, initialAngle + 360] }}
+      transition={{ duration, repeat: Infinity, ease: 'linear' }}
+      style={{ width: 0, height: 0 }}
+    >
+      <motion.div
+        className="absolute z-20 flex cursor-pointer items-center justify-center rounded-full border border-border/40 bg-card p-3 shadow-lg"
+        animate={{ rotate: [-initialAngle, -(initialAngle + 360)] }}
+        transition={{ duration, repeat: Infinity, ease: 'linear' }}
+        style={{ x: radius }}
+        whileHover={{
+          scale: 1.25,
+          borderColor: color,
+          backgroundColor: `${color}10`,
+          boxShadow: `0 0 20px ${color}30`,
+          zIndex: 50,
+          color: color
+        }}
+      >
+        <IconComponent className="size-6 text-muted-foreground" />
+      </motion.div>
+    </motion.div>
+  );
+};

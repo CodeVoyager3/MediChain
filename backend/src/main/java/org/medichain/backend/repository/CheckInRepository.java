@@ -14,4 +14,6 @@ public interface CheckInRepository extends JpaRepository<ClinicCheckIn, Long> {
 	
 	// Ensures a doctor can only complete their OWN appointments
 	Optional<ClinicCheckIn> findByIdAndDoctorAddressIgnoreCase(Long id, String doctorAddress);
+	
+	List<ClinicCheckIn> findByPatientAddressIgnoreCaseAndStatus(String patientAddress, String status);
 }

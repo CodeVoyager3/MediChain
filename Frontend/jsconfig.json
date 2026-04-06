@@ -5,7 +5,8 @@
       "@/*": ["./src/*"]
     },
     "typeRoots": ["./node_modules/@types"],
-    "types": []
+    "types": [],
+    "ignoreDeprecations": "6.0"
   },
   "typeAcquisition": {
     "enable": true,
