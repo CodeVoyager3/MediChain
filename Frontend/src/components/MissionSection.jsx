@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { ShieldCheck, Fingerprint, Link2, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { MissionBentoCards } from './mission-bento/MissionBentoCards';
 
 /* ─── Pill badge ──────────────────────────────────────────── */
 function Badge({ children }) {
@@ -48,37 +49,6 @@ function SplitReveal({ text, className }) {
   );
 }
 
-/* ─── Feature pill cards (bottom row) ────────────────────── */
-const PILLARS = [
-  {
-    icon: Fingerprint,
-    label: 'Patient Ownership',
-    desc: 'Records minted as ERC-721 NFTs — tied to your wallet, not a hospital server.',
-    accent: 'from-primary/20 to-primary/0',
-    iconColor: 'text-primary',
-    iconBg: 'bg-primary/10',
-    border: 'border-primary/20',
-  },
-  {
-    icon: ShieldCheck,
-    label: 'Smart Contract Access',
-    desc: 'Doctors request time-bound, cryptographic access. Revoke instantly on-chain.',
-    accent: 'from-secondary/20 to-secondary/0',
-    iconColor: 'text-secondary-foreground',
-    iconBg: 'bg-secondary/10',
-    border: 'border-secondary/20',
-  },
-  {
-    icon: Link2,
-    label: 'Zero Fraud',
-    desc: 'Insurers verify claims via immutable blockchain hash. Forgery is mathematically impossible.',
-    accent: 'from-primary/20 to-primary/0',
-    iconColor: 'text-primary',
-    iconBg: 'bg-primary/10',
-    border: 'border-primary/20',
-  },
-];
-
 /* ─── Separator line with center dot ─────────────────────── */
 function OrnamentalDivider() {
   return (
@@ -108,7 +78,7 @@ export function MissionSection() {
       {/* Top thin accent line */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-20 bg-gradient-to-b from-transparent via-border to-transparent" />
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 pt-24 pb-20 flex flex-col items-center text-center">
+      <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center px-6 pb-20 pt-24 text-center">
 
         {/* Badge */}
         <Badge>Our Mission</Badge>
@@ -177,45 +147,15 @@ export function MissionSection() {
         {/* Ornamental divider */}
         <OrnamentalDivider />
 
-        {/* Three pillar cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-          {PILLARS.map((p, i) => (
-            <motion.div
-              key={p.label}
-              initial={{ opacity: 0, y: 28 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-5%' }}
-              transition={{
-                duration: 0.55,
-                delay: i * 0.1,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              whileHover={{ y: -3 }}
-              className={`
-                group relative overflow-hidden rounded-2xl border ${p.border}
-                bg-background/60 backdrop-blur-sm p-6
-                flex flex-col items-start gap-4 text-left
-                hover:shadow-lg transition-all duration-300 cursor-default
-              `}
-            >
-              {/* Gradient blob */}
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${p.accent} opacity-60 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl`}
-              />
-
-              {/* Icon */}
-              <div className={`relative w-10 h-10 rounded-xl ${p.iconBg} flex items-center justify-center`}>
-                <p.icon className={`w-5 h-5 ${p.iconColor}`} />
-              </div>
-
-              {/* Text */}
-              <div className="relative">
-                <p className="font-display text-[1.05rem] text-foreground mb-1.5">{p.label}</p>
-                <p className="font-body text-[0.82rem] text-muted-foreground leading-relaxed">{p.desc}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-5%' }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full"
+        >
+          <MissionBentoCards />
+        </motion.div>
 
         {/* Stats strip */}
         <motion.div

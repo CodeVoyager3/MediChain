@@ -50,6 +50,25 @@ const fadeIn = (delay = 0) => ({
 });
 
 export function HeroSection() {
+  const [isDark, setIsDark] = React.useState(false);
+
+  React.useEffect(() => {
+    // Check initial theme
+    setIsDark(document.documentElement.classList.contains('dark'));
+
+    // Listen for theme changes
+    const updateTheme = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
   return (
     <section
       className="relative min-h-screen flex"
@@ -57,12 +76,16 @@ export function HeroSection() {
     >
       {/* Background image — theme aware */}
       <div
-        className="absolute inset-0 z-0 scale-105"
+        className="absolute inset-0 z-0"
         style={{
           backgroundImage: 'var(--hero-url)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'brightness(0.9) contrast(1.1)',
+          filter: isDark
+            ? 'brightness(0.7) contrast(1.2) saturate(0.8)'
+            : 'brightness(0.9) contrast(1.1) saturate(0.9)',
+          transform: 'scale(1.05)',
+          transformOrigin: 'center center',
         }}
       />
 
@@ -70,8 +93,11 @@ export function HeroSection() {
       <div
         className="absolute inset-0 z-[1]"
         style={{
-          background:
-            'radial-gradient(circle at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.65) 60%, rgba(0,0,0,0.7) 100%)',
+          background: isDark
+            ? 'radial-gradient(circle at center, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.8) 100%)'
+            : 'radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.6) 100%)',
+          transform: 'scale(1.05)',
+          transformOrigin: 'center center',
         }}
       />
 

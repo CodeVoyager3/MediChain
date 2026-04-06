@@ -17,6 +17,7 @@
     "ui": "@/components/ui"
   },
   "registries": {
-    "@react-bits": "https://reactbits.dev/r/{name}.json"
+    "@react-bits": "https://reactbits.dev/r/{name}.json",
+    "@ui-layouts": "https://ui-layouts.com/r/{name}.json"
   }
 }

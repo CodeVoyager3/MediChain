@@ -22,7 +22,7 @@ const navLinks = [
   { label: 'How It Works', href: '#how' },
   { label: 'Features', href: '#features' },
   { label: 'Patient Stories', href: '#stories' },
-  { label: 'Docs', href: '#' },
+  { label: 'Docs', href: '#docs' },
 ];
 
 const client = createThirdwebClient({
