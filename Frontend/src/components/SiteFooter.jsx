@@ -26,7 +26,10 @@ export function FooterSection() {
         <div className="flex flex-col md:flex-row items-start justify-between gap-10 mb-12">
           {/* Brand */}
           <div className="max-w-xs">
-            <img src="/logo.png" alt="MediChain Logo" className="h-10 md:h-14 w-auto object-contain mb-4" />
+            <div className="flex items-center gap-2 mb-4">
+              <img src="/logo.png" alt="MediChain Logo" className="h-10 md:h-12 w-auto object-contain" />
+              <span className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-logo)', color: 'hsl(var(--foreground))' }}>MediChain</span>
+            </div>
             <p className="mt-2 text-sm font-body text-muted-foreground leading-relaxed">
               Decentralized health records. Patient-owned. Blockchain-verified.
             </p>

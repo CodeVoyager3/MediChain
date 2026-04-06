@@ -304,14 +304,14 @@ export function Navbar({
           ref={el => {
             logoRef.current = el;
           }}
-          className="rounded-full p-1.5 inline-flex items-center justify-center overflow-hidden shadow-lg border border-black/5 dark:border-white/10"
+          className="rounded-full px-4 inline-flex items-center justify-center gap-2 overflow-hidden shadow-lg border border-black/5 dark:border-white/10"
           style={{
-            width: 'var(--nav-h)',
             height: 'var(--nav-h)',
             background: 'var(--base, #fff)'
           }}
         >
-          <img src={logo} alt={logoAlt} ref={logoImgRef} className="w-full h-full object-contain block p-0.5" />
+          <img src={logo} alt={logoAlt} ref={logoImgRef} className="h-8 w-8 object-contain block p-0.5" />
+          <span className="text-xl font-bold tracking-tight hidden sm:block" style={{ fontFamily: 'var(--font-logo)', color: 'hsl(var(--foreground))' }}>MediChain</span>
         </Link>
 
         {/* Desktop Nav Items */}

@@ -37,6 +37,15 @@
     --magic-glow: 144 40% 90%;
     --particle-color: 220 41% 56%;
     --hero-url: url('/bg-light.jpg');
+    --font-logo: 'Ahsing', sans-serif;
+  }
+
+  @font-face {
+    font-family: 'Ahsing';
+    src: url('/ahsing-regular.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
   }
 
   .dark {

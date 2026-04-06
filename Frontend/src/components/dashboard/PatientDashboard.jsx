@@ -35,7 +35,10 @@ function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout }) {
     return (
         <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
             <div className="flex items-center justify-between px-5 py-[18px] border-b border-border">
-                <img src="/logo.png" alt="MediChain" className="h-8 w-auto object-contain" />
+                <div className="flex items-center gap-2">
+                    <img src="/logo.png" alt="MediChain" className="h-8 w-auto object-contain" />
+                    <span className="text-lg font-bold tracking-tight" style={{ fontFamily: 'var(--font-logo)', color: 'hsl(var(--foreground))' }}>MediChain</span>
+                </div>
                 <button className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}><ChevronsLeft className="w-4 h-4" /></button>
             </div>
             <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
