@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { createThirdwebClient } from "thirdweb";
-import { ConnectButton, useActiveAccount, useActiveWalletChain, lightTheme } from "thirdweb/react";
+import { ConnectButton, useActiveAccount, useActiveWalletChain, lightTheme, useDisconnect, useActiveWallet } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { polygonAmoy } from "thirdweb/chains";
+import { useAuth } from '../context/AuthContext';
+import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 
 const customTheme = lightTheme({
   colors: {
@@ -14,8 +16,6 @@ const customTheme = lightTheme({
     accentButtonText: "hsl(220, 41%, 32%)",
   },
 });
-import { useAuth } from '../context/AuthContext';
-import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 
 const navLinks = [
   { label: 'About', href: '#about' },
@@ -58,33 +58,63 @@ export function Navbar({
   const logoRef = useRef(null);
 
   // --- Start Business Logic Integration ---
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, isAuthenticated, user, logout } = useAuth();
   const account = useActiveAccount();
   const activeChain = useActiveWalletChain();
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
   const navigate = useNavigate();
-  const [hasTriedLogin, setHasTriedLogin] = useState(false);
 
+  // THE FIX: An immutable lock to stop React 18 from double-firing the signature
+  const authLock = useRef(false);
+
+  // ---------------------------------------------------------
+  // THE BULLETPROOF AUTH LOGIC
+  // ---------------------------------------------------------
   useEffect(() => {
-    if (account && !isAuthenticated && !hasTriedLogin) {
-      if (activeChain && activeChain.id !== polygonAmoy.id) {
-        console.log("Waiting for user to switch to Polygon Amoy...");
-        return;
-      }
-      setHasTriedLogin(true);
-      login(account, client)
-        .then((result) => {
-          if (result && result.role && result.role !== 'UNREGISTERED') {
-            const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
-            navigate(roleRoutes[result.role] || '/');
-          }
-        })
-        .catch((err) => {
-          console.error('Backend auth failed:', err);
-          setHasTriedLogin(false);
-        });
+    // 1. If disconnected or successfully logged in, release the lock and do nothing
+    if (!account || isAuthenticated) {
+      authLock.current = false;
+      return;
     }
-  }, [account, activeChain, isAuthenticated, hasTriedLogin, login, navigate]);
 
+    // 2. Wait for the user to be on the correct network
+    if (activeChain && activeChain.id !== polygonAmoy.id) return;
+
+    // 3. React Strict Mode Trap: If we are already asking for a signature, IGNORE this render
+    if (authLock.current) return;
+
+    // Lock the doors! We are initiating the login sequence.
+    authLock.current = true;
+
+    const authenticate = async () => {
+      try {
+        console.log("Wallet detected, requesting backend signature...");
+        const result = await login(account, client);
+
+        if (result && result.role && result.role !== 'UNREGISTERED') {
+          const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };
+          navigate(roleRoutes[result.role] || '/');
+        }
+      } catch (err) {
+        console.error('Signature rejected or login failed:', err);
+
+        // Clear the ghost session cache
+        localStorage.removeItem('medichain_jwt');
+        if (logout) logout();
+
+        // Sever the connection so they can try again fresh
+        if (wallet) {
+          disconnect(wallet);
+        }
+      }
+    };
+
+    authenticate();
+
+  }, [account, activeChain, isAuthenticated, login, navigate, wallet, disconnect, logout]);
+
+  // If user completes registration or is already logged in, redirect them
   useEffect(() => {
     if (isAuthenticated && user?.role && user.role !== 'UNREGISTERED') {
       const roleRoutes = { PATIENT: '/patient', DOCTOR: '/doctor', INSURER: '/insurer' };

@@ -22,6 +22,16 @@ const NAV = {
     general: [{ id: 'settings', label: 'Settings', icon: Settings }, { id: 'logout', label: 'Log out', icon: LogOut }],
 };
 
+// --- HELPER: Nuke polluted IPFS strings ---
+const normalizeCid = (value) => {
+    if (!value) return null;
+    let v = String(value).trim();
+    v = v.replace(/^ipfs:\/\//i, "").replace(/^ipfs\//i, "").replace(/^\//, "");
+    if (v.includes("ipfs/")) v = v.split("ipfs/").pop();
+    v = v.split("/")[0];
+    return v.length > 10 ? v : null;
+};
+
 function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout }) {
     return (
         <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
@@ -86,33 +96,24 @@ export default function InsuranceDashboard() {
 
     const [activeNav, setActiveNav] = useState('verify');
     const [mobileOpen, setMobileOpen] = useState(false);
-
     const [walletAddress, setWalletAddress] = useState('');
     const [tokenId, setTokenId] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
-
     const [verificationResult, setVerificationResult] = useState(null);
     const [verifyError, setVerifyError] = useState('');
     const [auditTrail, setAuditTrail] = useState([]);
 
-    const handleViewDocument = (e, cid) => {
+    const handleViewDocument = (e, rawCid) => {
         e.stopPropagation();
-        if (!cid) { alert("Document CID not found."); return; }
+        const cid = normalizeCid(rawCid);
+        if (!cid) { alert("Document CID not found or malformed."); return; }
         window.open(`https://gateway.pinata.cloud/ipfs/${cid}`, '_blank', 'noopener,noreferrer');
     };
 
     const handleLogout = () => {
-        // 1. Sever the Web3 connection
-        if (wallet) {
-            disconnect(wallet);
-        }
-        // 2. Clear the local JWT
+        if (wallet) disconnect(wallet);
         logout();
-
-        // 3. IMPORTANT: Wait 250ms for Thirdweb to clear LocalStorage before navigating away!
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 250);
+        setTimeout(() => { window.location.href = '/'; }, 250);
     };
 
     const handleVerify = async () => {
@@ -123,34 +124,28 @@ export default function InsuranceDashboard() {
         setAuditTrail([]);
 
         try {
-            console.log("1. Formatting Inputs...");
             const recordId = parseInt(tokenId.replace('#', ''), 10);
             if (isNaN(recordId)) throw new Error("Invalid Token ID format.");
 
-            const insurerAddress = account?.address || user?.walletAddress || user?.wallet || user?.address;
-            console.log("2. Insurer Wallet:", insurerAddress, "| Target Patient:", walletAddress, "| Record ID:", recordId);
-
-            if (!insurerAddress) {
-                throw new Error("Insurer wallet not found! Please ensure your wallet is connected.");
-            }
-
-            console.log("3. Sending API Request to Spring Boot...");
+            const insurerAddress = account?.address || user?.walletAddress;
             const res = await viewRecordAsInsurer(insurerAddress, walletAddress, recordId);
-            console.log("4. Received Backend Response:", res);
-
             const payload = res.data;
+
+            // FIX: Search for CID inside nested recordData
+            const rawCid = payload.recordData?.ipfsCid || payload.recordData?.ipfs_cid || payload.recordData?.cid;
 
             setVerificationResult({
                 signature: payload.securityChecks.authenticityVerified,
                 hashMatch: payload.securityChecks.integrityVerified,
                 notSuperseded: !payload.recordData.isSuperseded,
-                cid: payload.recordData.ipfsCid,
+                cid: rawCid,
                 auditStatus: payload.recordData.auditStatus
             });
 
-            const trail = payload.auditTrail || [];
+            // FIX: Fallback for snake_case and map CID correctly
+            const trail = payload.auditTrail || payload.audit_trail || [];
             setAuditTrail(trail.map((entry, i) => ({
-                id: `v${trail.length - i}`,
+                id: entry.recordId || entry.record_id || `v-${i}`,
                 recordId: entry.recordId || entry.record_id,
                 version: i === 0 ? 'Latest' : 'Superseded',
                 date: entry.recordType || 'Medical Record',
@@ -159,10 +154,7 @@ export default function InsuranceDashboard() {
                 rawCid: entry.ipfsCid || entry.ipfs_cid || entry.cid
             })));
 
-            console.log("5. Verification Complete!");
-
         } catch (err) {
-            console.error("VERIFICATION FAILED:", err);
             setVerifyError(err.message || "Verification failed. Access Denied.");
         } finally {
             setIsVerifying(false);
@@ -193,7 +185,6 @@ export default function InsuranceDashboard() {
                     )}
 
                     <div className="flex flex-col lg:flex-row gap-4">
-                        {/* Column 1: Input Form */}
                         <div className="w-full lg:w-[35%] shrink-0">
                             <MagicCard className="h-full bg-transparent" gradientColor='hsl(var(--muted))'>
                                 <GlassCard>
@@ -205,11 +196,11 @@ export default function InsuranceDashboard() {
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Patient Wallet Address</label>
-                                                <input type="text" placeholder="0x..." value={walletAddress} onChange={(e) => setWalletAddress(e.target.value)} className="w-full border rounded-xl px-3 py-2.5 text-[12px] font-mono bg-background" />
+                                                <input type="text" placeholder="0x..." value={walletAddress} onChange={(e) => setWalletAddress(e.target.value)} className="w-full border rounded-xl px-3 py-2.5 text-[12px] font-mono bg-background focus:ring-1 focus:ring-secondary outline-none" />
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Record / Token ID</label>
-                                                <input type="text" placeholder="e.g. 12" value={tokenId} onChange={(e) => setTokenId(e.target.value)} className="w-full border rounded-xl px-3 py-2.5 text-[12px] font-mono bg-background" />
+                                                <input type="text" placeholder="e.g. 12" value={tokenId} onChange={(e) => setTokenId(e.target.value)} className="w-full border rounded-xl px-3 py-2.5 text-[12px] font-mono bg-background focus:ring-1 focus:ring-secondary outline-none" />
                                             </div>
 
                                             <ShimmerButton onClick={handleVerify} disabled={isVerifying || !walletAddress || !tokenId} className="w-full py-3 mt-2 rounded-xl text-[12px] font-bold border-none" background='hsl(var(--accent))'>
@@ -224,7 +215,6 @@ export default function InsuranceDashboard() {
                             </MagicCard>
                         </div>
 
-                        {/* Column 2: Results & Audit Trail */}
                         <div className="flex-1 flex flex-col gap-4 min-w-0">
                             <MagicCard className="bg-transparent" gradientColor='hsl(var(--muted))'>
                                 <GlassCard>
@@ -235,27 +225,23 @@ export default function InsuranceDashboard() {
                                         </div>
 
                                         {!verificationResult ? (
-                                            <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                                            <div className="flex flex-col items-center justify-center py-10 opacity-50 text-center">
                                                 <Search className="w-8 h-8 mb-3 text-muted-foreground" />
-                                                <p className="text-[11px] text-muted-foreground">Enter a Patient Wallet and Token ID to begin verification.</p>
+                                                <p className="text-[11px] text-muted-foreground">Enter credentials to begin verification.</p>
                                             </div>
                                         ) : (
                                             <div className="space-y-3">
-                                                <VerificationCheckRow icon={Fingerprint} label="1. Provider Authenticity" description="Verified signature of the issuing medical professional." verified={verificationResult.signature} delay={0.1} />
-                                                <VerificationCheckRow icon={Hash} label="2. Cryptographic Integrity" description="IPFS CID hash matches immutable blockchain record." verified={verificationResult.hashMatch} delay={0.3} />
-                                                <VerificationCheckRow icon={AlertTriangle} label="3. Version Control" description={verificationResult.notSuperseded ? "This is the latest, un-amended version." : "WARNING: This record has been superseded/amended."} verified={verificationResult.notSuperseded} delay={0.5} />
+                                                <VerificationCheckRow icon={Fingerprint} label="1. Provider Authenticity" description="Verified signature of issuing professional." verified={verificationResult.signature} delay={0.1} />
+                                                <VerificationCheckRow icon={Hash} label="2. Cryptographic Integrity" description="CID hash matches immutable blockchain record." verified={verificationResult.hashMatch} delay={0.3} />
+                                                <VerificationCheckRow icon={AlertTriangle} label="3. Version Control" description={verificationResult.notSuperseded ? "Latest un-amended version." : "WARNING: Superseded version."} verified={verificationResult.notSuperseded} delay={0.5} />
 
                                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="mt-5 pt-5 border-t border-border">
-                                                    {/* If it passed checks (even if superseded, we let them view it but show a warning) */}
                                                     {verificationResult.signature && verificationResult.hashMatch ? (
                                                         <div className="space-y-3">
                                                             {!verificationResult.notSuperseded && (
                                                                 <div className="bg-amber-950/20 border border-amber-900/50 p-3 rounded-xl flex items-start gap-3">
                                                                     <FileWarning className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                                                                    <div>
-                                                                        <p className="text-[11px] font-bold text-amber-500">Outdated Record Warning</p>
-                                                                        <p className="text-[10px] text-muted-foreground mt-0.5">This file is authentic, but a newer version exists. Check the Audit Trail below.</p>
-                                                                    </div>
+                                                                    <div className="text-[10px] text-muted-foreground"><p className="font-bold text-amber-500">Outdated Record</p>A newer version exists. Check Audit Trail.</div>
                                                                 </div>
                                                             )}
                                                             <Button onClick={(e) => handleViewDocument(e, verificationResult.cid)} className={`w-full py-5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 ${verificationResult.notSuperseded ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}>
@@ -265,7 +251,7 @@ export default function InsuranceDashboard() {
                                                     ) : (
                                                         <div className="bg-red-950/20 border border-red-900/50 p-3 rounded-xl text-center">
                                                             <p className="text-[11px] font-bold text-red-500">Fraud Detected</p>
-                                                            <p className="text-[10px] text-muted-foreground mt-0.5">This document failed cryptographic verification. Do not process this claim.</p>
+                                                            <p className="text-[10px] text-muted-foreground mt-0.5">Failed cryptographic verification. Block this claim.</p>
                                                         </div>
                                                     )}
                                                 </motion.div>
@@ -275,7 +261,6 @@ export default function InsuranceDashboard() {
                                 </GlassCard>
                             </MagicCard>
 
-                            {/* NEW: The Audit Trail UI */}
                             {auditTrail.length > 0 && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9 }}>
                                     <MagicCard className="bg-transparent" gradientColor='hsl(var(--muted))'>
@@ -284,25 +269,24 @@ export default function InsuranceDashboard() {
                                                 <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/10"><History className="w-3.5 h-3.5 text-secondary" /></div>
                                                 <span className="text-[13px] font-semibold">Chain of Custody (Audit Trail)</span>
                                             </div>
-
                                             <div className="relative pl-3 border-l border-border/50 ml-3 space-y-6 mt-4">
                                                 {auditTrail.map((entry, index) => {
                                                     const isLatest = index === 0;
                                                     return (
-                                                        <div key={entry.recordId} className="relative">
+                                                        <div key={entry.id} className="relative">
                                                             <div className={`absolute -left-[17px] top-1 w-3 h-3 rounded-full border-2 border-background ${isLatest ? 'bg-emerald-500' : 'bg-muted-foreground'}`}></div>
                                                             <div className={`p-3 rounded-xl border ${isLatest ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-border bg-background/30'}`}>
                                                                 <div className="flex justify-between items-start mb-1">
                                                                     <div className="text-[12px] font-bold flex items-center gap-2">
                                                                         Record #{entry.recordId}
-                                                                        {isLatest ? <Badge variant="outline" className="text-[8px] h-4 px-1.5 border-emerald-500/50 text-emerald-500">Latest</Badge> : <Badge variant="outline" className="text-[8px] h-4 px-1.5 border-amber-500/50 text-amber-500">Superseded</Badge>}
+                                                                        {isLatest ? <Badge variant="outline" className="text-[8px] h-4 px-1.5 border-emerald-500/50 text-emerald-500 uppercase">Latest</Badge> : <Badge variant="outline" className="text-[8px] h-4 px-1.5 border-amber-500/50 text-amber-500 uppercase">Superseded</Badge>}
                                                                     </div>
-                                                                    <button onClick={(e) => handleViewDocument(e, entry.ipfsCid || entry.ipfs_cid || entry.cid)} className="text-[10px] flex items-center gap-1 text-secondary hover:underline">
+                                                                    <button onClick={(e) => handleViewDocument(e, entry.rawCid)} className="text-[10px] flex items-center gap-1 text-secondary hover:underline transition-all">
                                                                         <Eye className="w-3 h-3"/> View
                                                                     </button>
                                                                 </div>
-                                                                <p className="text-[10px] text-muted-foreground mb-1">{entry.recordType || 'Medical Document'}</p>
-                                                                <p className="text-[9px] font-mono text-muted-foreground truncate">Doctor: {entry.doctorAddress || entry.doctor_address}</p>
+                                                                <p className="text-[10px] text-muted-foreground mb-1">{entry.date}</p>
+                                                                <p className="text-[9px] font-mono text-muted-foreground truncate opacity-60">Issuer: {entry.doctor}</p>
                                                             </div>
                                                         </div>
                                                     );
