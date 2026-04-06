@@ -24,6 +24,7 @@ import { ShimmerButton } from '../magicui/shimmer-button';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { useAuth } from '../../context/AuthContext';
+import DashboardLayout from './DashboardLayout';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -62,37 +63,6 @@ function BarChart({ chartData }) {
     return <div className="w-full h-full min-h-[160px] pb-2"><Bar data={data} options={options} /></div>;
 }
 
-function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout }) {
-    return (
-        <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
-            <div className="flex items-center justify-between px-5 py-[18px] border-b border-border">
-                <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="MediChain" className="h-8 w-auto object-contain" />
-                    <span className="text-lg font-bold tracking-tight" style={{ fontFamily: 'var(--font-logo)', color: 'hsl(var(--foreground))' }}>MediChain</span>
-                </div>
-                <button className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors" onClick={() => setMobileOpen(false)}><ChevronsLeft className="w-4 h-4" /></button>
-            </div>
-            <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
-                <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-2 text-muted-foreground">Main Menu</p>
-                    <ul className="space-y-0.5">
-                        {NAV.main.map(item => (
-                            <li key={item.id}><button onClick={() => { setActiveNav(item.id); setMobileOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all text-left ${activeNav === item.id ? 'bg-secondary/10 text-secondary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><item.icon className="w-4 h-4 shrink-0" /><span className="flex-1">{item.label}</span></button></li>
-                        ))}
-                    </ul>
-                </div>
-                <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-2 text-muted-foreground">General</p>
-                    <ul className="space-y-0.5">
-                        {NAV.general.map(item => (
-                            <li key={item.id}><button onClick={item.id === 'logout' ? onLogout : undefined} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${item.id === 'logout' ? 'text-red-400 hover:bg-red-950/30' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><item.icon className="w-4 h-4 shrink-0" />{item.label}</button></li>
-                        ))}
-                    </ul>
-                </div>
-            </nav>
-        </aside>
-    );
-}
 
 function GrantAccessModal({ open, onClose, records }) {
     const [doctorAddr, setDoctorAddr] = useState('');
@@ -257,62 +227,92 @@ export default function PatientDashboard() {
         } catch (err) { setErrorMsg(err.message); } finally { setRevokingId(null); }
     };
 
+    const navMain = [
+        ...NAV.main.map(item => ({
+            title: item.label,
+            url: "#",
+            icon: item.icon,
+            isActive: activeNav === item.id,
+            onClick: () => setActiveNav(item.id)
+        })),
+        ...NAV.features.map(item => ({
+            title: item.label,
+            url: "#",
+            icon: item.icon,
+            isActive: activeNav === item.id,
+            onClick: () => setActiveNav(item.id)
+        }))
+    ];
+
+    const navSecondary = [
+        {
+            title: "Settings",
+            url: "#",
+            icon: Settings,
+            onClick: () => setActiveNav('settings')
+        },
+        {
+            title: "Log out",
+            url: "#",
+            icon: LogOut,
+            onClick: handleLogout
+        }
+    ];
+
+    const sidebarUser = {
+        name: user?.name || 'Patient',
+        email: user?.walletAddress?.slice(0, 10) + '...',
+        avatar: ""
+    };
+
     return (
-        <div className="flex h-screen overflow-hidden font-body bg-background">
-            <div className="hidden lg:flex"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} /></div>
-            {mobileOpen && <div className="fixed inset-y-0 left-0 z-50 lg:hidden"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} /></div>}
+        <DashboardLayout
+            title={`Welcome back, ${user?.name || 'Patient'} 👋`}
+            user={sidebarUser}
+            navMain={navMain}
+            navSecondary={navSecondary}
+        >
+            {errorMsg && <div className="bg-red-950/30 text-red-300 text-xs p-3 rounded-xl flex justify-between border border-red-900/40"><span>{errorMsg}</span><button onClick={() => setErrorMsg('')} className="underline hover:text-red-100 transition-all">Dismiss</button></div>}
 
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <header className="flex items-center justify-between px-4 lg:px-6 py-3.5 bg-background border-b border-border shrink-0">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-xl hover:bg-muted transition-colors"><Menu className="w-5 h-5" /></button>
-                        <h1 className="text-[15px] font-semibold text-foreground">Welcome back, {user?.name || 'Patient'} 👋</h1>
-                    </div>
-                    <div className="flex items-center gap-2"><AnimatedThemeToggler /></div>
-                </header>
+            <div className="flex flex-col lg:flex-row gap-4">
+                <div className="w-full lg:w-[42%] shrink-0">
+                    <MagicCard className="h-full" gradientColor='hsl(var(--muted))'>
+                        <CardContent className="p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center"><FileText className="w-3.5 h-3.5 text-secondary" /></div>
+                                    <span className="text-[13px] font-medium text-muted-foreground">Total Vaulted Files</span>
+                                </div>
+                            </div>
+                            <div className="mb-1 text-foreground flex items-center h-12">
+                                {loadingRecords ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <NumberTicker value={records.length} className="text-[2.6rem] font-bold" />}
+                            </div>
+                            <div className="flex gap-2 mb-5 mt-4">
+                                <Button onClick={() => setGrantModalOpen(true)} variant="outline" className="flex-1 py-[10px] rounded-xl text-[12px] font-semibold text-secondary border-secondary/40 hover:bg-secondary/10 transition-all"><ShieldCheck className="w-3.5 h-3.5 mr-1" /> Control Access</Button>
+                            </div>
+                            <div className="flex items-center justify-between mb-3"><span className="text-[12px] font-semibold text-muted-foreground uppercase tracking-tight">Recent Activity</span></div>
+                            <div className="space-y-1">
+                                {records.slice(0, 4).map(r => (
+                                    <div key={r.recordId} className="flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-secondary/5 cursor-pointer group" onClick={(e) => handleViewDocument(e, getCid(r))}>
+                                        <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center transition-all group-hover:scale-105"><Activity className="w-3.5 h-3.5 text-secondary" /></div>
+                                        <span className="flex-1 text-[12px] font-medium truncate text-foreground">{r.recordType}</span>
+                                        <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover:text-secondary transition-colors" />
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </MagicCard>
+                </div>
 
-                <main className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 lg:py-5 space-y-4">
-                    {errorMsg && <div className="bg-red-950/30 text-red-300 text-xs p-3 rounded-xl flex justify-between border border-red-900/40"><span>{errorMsg}</span><button onClick={() => setErrorMsg('')} className="underline hover:text-red-100 transition-all">Dismiss</button></div>}
-
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        <div className="w-full lg:w-[42%] shrink-0">
-                            <MagicCard className="h-full" gradientColor='hsl(var(--muted))'>
-                                <CardContent className="p-5">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center"><FileText className="w-3.5 h-3.5 text-secondary" /></div>
-                                            <span className="text-[13px] font-medium text-muted-foreground">Total Vaulted Files</span>
-                                        </div>
-                                    </div>
-                                    <div className="mb-1 text-foreground flex items-center h-12">
-                                        {loadingRecords ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <NumberTicker value={records.length} className="text-[2.6rem] font-bold" />}
-                                    </div>
-                                    <div className="flex gap-2 mb-5 mt-4">
-                                        <Button onClick={() => setGrantModalOpen(true)} variant="outline" className="flex-1 py-[10px] rounded-xl text-[12px] font-semibold text-secondary border-secondary/40 hover:bg-secondary/10 transition-all"><ShieldCheck className="w-3.5 h-3.5 mr-1" /> Control Access</Button>
-                                    </div>
-                                    <div className="flex items-center justify-between mb-3"><span className="text-[12px] font-semibold text-muted-foreground uppercase tracking-tight">Recent Activity</span></div>
-                                    <div className="space-y-1">
-                                        {records.slice(0, 4).map(r => (
-                                            <div key={r.recordId} className="flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-secondary/5 cursor-pointer group" onClick={(e) => handleViewDocument(e, getCid(r))}>
-                                                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center transition-all group-hover:scale-105"><Activity className="w-3.5 h-3.5 text-secondary" /></div>
-                                                <span className="flex-1 text-[12px] font-medium truncate text-foreground">{r.recordType}</span>
-                                                <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover:text-secondary transition-colors" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </MagicCard>
-                        </div>
-
-                        <div className="flex-1 flex flex-col gap-4 min-w-0">
-                            <ShadcnCard className="flex-1 border-border shadow-none bg-card">
-                                <CardContent className="p-5 flex-1 flex flex-col">
-                                    <span className="text-[13px] font-semibold text-foreground mb-4 uppercase tracking-tighter">Activity Analytics</span>
-                                    <div className="flex-1 min-h-[220px] relative"><BarChart chartData={FALLBACK_CHART_DATA} /></div>
-                                </CardContent>
-                            </ShadcnCard>
-                        </div>
-                    </div>
+                <div className="flex-1 flex flex-col gap-4 min-w-0">
+                    <ShadcnCard className="flex-1 border-border shadow-none bg-card">
+                        <CardContent className="p-5 flex-1 flex flex-col">
+                            <span className="text-[13px] font-semibold text-foreground mb-4 uppercase tracking-tighter">Activity Analytics</span>
+                            <div className="flex-1 min-h-[220px] relative"><BarChart chartData={FALLBACK_CHART_DATA} /></div>
+                        </CardContent>
+                    </ShadcnCard>
+                </div>
+            </div>
 
                     <div className="flex flex-col lg:flex-row gap-4">
                         <ShadcnCard className="w-full lg:w-[42%] shrink-0 border-border shadow-none bg-card overflow-hidden">
@@ -393,13 +393,11 @@ export default function PatientDashboard() {
                                 </Table>
                             </CardContent>
                         </ShadcnCard>
-                    </div>
-                </main>
-            </div>
+                </div>
             <GrantAccessModal open={grantModalOpen} onClose={(res) => {
                 setGrantModalOpen(false);
                 if (res?.success) fetchGrants();
             }} records={records} />
-        </div>
+        </DashboardLayout>
     );
 }
