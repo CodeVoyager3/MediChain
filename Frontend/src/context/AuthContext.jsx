@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useActiveAccount, useDisconnect, useActiveWalletChain, useSwitchActiveWalletChain } from 'thirdweb/react';
+import { useActiveAccount, useDisconnect, useActiveWalletChain, useSwitchActiveWalletChain, useActiveWallet } from 'thirdweb/react';
 import { polygonAmoy } from 'thirdweb/chains';
 import { signMessage } from 'thirdweb/utils';
 import { requestNonce, verifySignature, registerUser, getUserProfile } from '../services/api';
@@ -16,9 +16,11 @@ export function AuthProvider({ children }) {
     const [isLoading, setIsLoading] = useState(true);
     const [showRegister, setShowRegister] = useState(false);
 
+    // Thirdweb Hooks
     const { disconnect } = useDisconnect();
     const account = useActiveAccount();
     const chain = useActiveWalletChain();
+    const wallet = useActiveWallet(); // <--- ADDED THIS
     const { switchChain } = useSwitchActiveWalletChain();
 
     const isCorrectNetwork = chain?.id === AMOY_CHAIN_ID;
@@ -98,8 +100,12 @@ export function AuthProvider({ children }) {
         setToken(null);
         setUser(null);
         setShowRegister(false);
-        if (disconnect) { try { disconnect(); } catch { /* ignore */ } }
-    }, [disconnect]);
+
+        // CRITICAL FIX: Pass the actual wallet object to disconnect!
+        if (wallet) {
+            try { disconnect(wallet); } catch { /* ignore */ }
+        }
+    }, [disconnect, wallet]);
 
     const value = { user, token, isAuthenticated, isLoading, showRegister, setShowRegister, login, register, logout, isCorrectNetwork, switchNetwork: () => switchChain(polygonAmoy) };
 
