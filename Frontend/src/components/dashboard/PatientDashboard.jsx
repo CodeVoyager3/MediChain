@@ -22,6 +22,8 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Lege
 import { Bar } from 'react-chartjs-2';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/context/AuthContext';
 import {
   checkInToClinic,
@@ -33,7 +35,10 @@ import {
   leaveClinic,
   revokeAccess,
 } from '@/services/api';
-import AppLayout from '@/components/common/AppLayout';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import BentoStats from '@/components/dashboard/BentoStats';
+import { FluidTabs } from '@/components/animated/FluidTabs';
+import { WigglingCards } from '@/components/animated/WigglingCards';
 import EmptyState from '@/components/common/EmptyState';
 import { useTheme } from '@/context/ThemeContext';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -52,7 +57,6 @@ const NAV_ITEMS = [
   { id: 'episodes', label: 'Episodes', icon: FolderKanban },
   { id: 'access', label: 'Access Control', icon: ShieldCheck },
   { id: 'appointments', label: 'Appointments', icon: CalendarClock },
-  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 const DURATION_OPTIONS = [
@@ -209,6 +213,7 @@ export default function PatientDashboard() {
   const chartOptions = useMemo(
     () => ({
       responsive: true,
+      maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         x: { ticks: { color: theme === 'dark' ? '#d4d4d8' : '#737373' }, grid: { color: theme === 'dark' ? '#27272a' : '#e5e7eb' } },
@@ -233,6 +238,17 @@ export default function PatientDashboard() {
   }, [records, recordSort]);
 
   const ungroupedRecords = useMemo(() => records.filter((record) => !record.episodeId), [records]);
+  const episodeCards = useMemo(
+    () =>
+      episodes.map((episode, index) => ({
+        id: episode.id ?? index,
+        icon: ShieldCheck,
+        percentage: `${Math.min(99, (episode.records?.length || 0) * 12 + 40)}%`,
+        value: `#${episode.id}`,
+        label: episode.title || 'Episode of Care',
+      })),
+    [episodes]
+  );
 
   const handleCheckIn = async () => {
     if (!doctorInput.trim()) return;
@@ -321,7 +337,7 @@ export default function PatientDashboard() {
   const sidebarActions = (
     <Button
       type="button"
-      className="w-full bg-indigo-600 text-white hover:bg-indigo-500"
+ className="w-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
       onClick={() => setShowPatientQr(true)}
     >
       <QrCode className="mr-2 h-4 w-4" />
@@ -331,40 +347,27 @@ export default function PatientDashboard() {
 
   const renderOverview = () => (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-card p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Total Records</p>
-          <p className="mt-2 text-3xl font-extrabold text-foreground">{records.length}</p>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-card p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Active Episodes</p>
-          <p className="mt-2 text-3xl font-extrabold text-foreground">{episodes.length}</p>
-        </div>
-        <div className="rounded-2xl border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5 p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Active Grants</p>
-          <p className="mt-2 text-3xl font-extrabold text-emerald-700 dark:text-emerald-300">{grants.length}</p>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-card p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Clinic Status</p>
-          <div className="mt-2 flex items-center gap-2">
-            <span className={cn('h-3 w-3 rounded-full', activeCheckIn ? 'animate-pulse bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-700')} />
-            <p className="text-sm font-bold text-foreground">{activeCheckIn ? 'Checked In' : 'Not Checked In'}</p>
-          </div>
-        </div>
-      </div>
+      <BentoStats
+        items={[
+          { label: 'Total Records', value: records.length, subtext: 'On-chain + IPFS secured' },
+          { label: 'Active Episodes', value: episodes.length, subtext: 'Episode of Care model' },
+          { label: 'Active Grants', value: grants.length, subtext: 'Time-boxed access controls' },
+          { label: 'Clinic Status', value: activeCheckIn ? 'Live' : 'Idle', subtext: activeCheckIn ? 'Checked in now' : 'Not checked in' },
+        ]}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground">Record Activity</h2>
-            <Activity className="h-4 w-4 text-indigo-500" />
+            <Activity className="h-4 w-4 text-primary" />
           </div>
           <div className="h-[250px] w-full">
             <Bar data={analyticsData} options={chartOptions} />
           </div>
         </section>
 
-        <section className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground">Recent Activity</h2>
             <Clock3 className="h-4 w-4 text-neutral-400" />
@@ -377,12 +380,12 @@ export default function PatientDashboard() {
                 <button
                   key={record.recordId || record.id}
                   type="button"
-                  className="flex w-full items-center justify-between rounded-xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-left transition-all hover:border-indigo-200 dark:hover:border-indigo-500/30"
+                  className="flex w-full items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-left transition-all hover:border-primary/40 dark:hover:border-primary/30"
                   onClick={() => openIpfs(record.ipfsCid)}
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-white dark:bg-card p-2 shadow-sm">
-                      <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      <FileText className="h-4 w-4 text-primary dark:text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-foreground line-clamp-1">{record.filename || record.recordType}</p>
@@ -397,7 +400,7 @@ export default function PatientDashboard() {
         </section>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-card p-5 shadow-sm">
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-foreground">Clinic Direct-Connect</h2>
           <Link2 className="h-4 w-4 text-neutral-400" />
@@ -420,17 +423,17 @@ export default function PatientDashboard() {
         ) : (
           <div className="grid gap-4 md:grid-cols-[1fr_200px]">
             <div className="flex gap-2">
-              <input
-                className="w-full rounded-xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-indigo-500"
+              <Input
+                className="h-11 rounded-xl border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5"
                 placeholder="Enter doctor/clinic wallet address..."
                 value={doctorInput}
                 onChange={(event) => setDoctorInput(event.target.value)}
               />
-              <Button type="button" variant="outline" className="border-neutral-200 dark:border-white/10 text-foreground h-auto" onClick={() => setScanMode('checkin')}>
+              <Button type="button" variant="outline" className="border-neutral-200 dark:border-neutral-800 text-foreground h-auto" onClick={() => setScanMode('checkin')}>
                 <ScanLine className="h-5 w-5" />
               </Button>
             </div>
-            <Button className="bg-indigo-600 dark:bg-indigo-500 text-white hover:bg-indigo-500 dark:hover:bg-indigo-400 font-bold h-auto py-2.5 shadow-lg shadow-indigo-500/20" disabled={isCheckingIn} onClick={handleCheckIn}>
+ <Button className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90 font-bold h-auto py-2.5 shadow-lg shadow-primary/20" disabled={isCheckingIn} onClick={handleCheckIn}>
               {isCheckingIn ? 'Checking in...' : 'Sign In to Clinic'}
             </Button>
           </div>
@@ -444,13 +447,13 @@ export default function PatientDashboard() {
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">My Records</h2>
         <select
-          className="rounded-md border border-neutral-200 bg-card px-2 py-1 text-sm text-foreground"
+          className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-card px-2 py-1 text-sm text-foreground outline-none"
           value={recordSort}
           onChange={(event) => setRecordSort(event.target.value)}
         >
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="type">By Type</option>
+          <option value="newest" className="bg-card text-foreground dark:bg-neutral-900">Newest First</option>
+          <option value="oldest" className="bg-card text-foreground dark:bg-neutral-900">Oldest First</option>
+          <option value="type" className="bg-card text-foreground dark:bg-neutral-900">By Type</option>
         </select>
       </div>
       {sortedRecords.length === 0 ? (
@@ -475,7 +478,7 @@ export default function PatientDashboard() {
               <p className="mt-1 text-xs text-neutral-500">
                 Doctor: <WalletAddress address={record.doctorAddress} />
               </p>
-              <Button className="mt-3 bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => openIpfs(record.ipfsCid)}>
+ <Button className="mt-3 bg-primary text-primary-foreground font-semibold hover:bg-primary/90" onClick={() => openIpfs(record.ipfsCid)}>
                 <Eye className="mr-2 h-4 w-4" />
                 View Record
               </Button>
@@ -496,7 +499,9 @@ export default function PatientDashboard() {
           description="Your doctor will create an episode at your next appointment."
         />
       ) : (
-        <Accordion type="multiple" className="rounded-xl border border-neutral-200 bg-card p-4">
+        <>
+          {episodeCards.length > 0 ? <WigglingCards cards={episodeCards} /> : null}
+          <Accordion type="multiple" className="rounded-xl border border-neutral-200 bg-card p-4">
           {episodes.map((episode) => (
             <AccordionItem key={episode.id} value={String(episode.id)} className="border-b border-neutral-200">
               <AccordionTrigger className="py-3 text-foreground hover:no-underline">
@@ -521,7 +526,7 @@ export default function PatientDashboard() {
                     </Button>
                     <Button
                       type="button"
-                      className="bg-indigo-600 text-white hover:bg-indigo-500"
+ className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
                       onClick={(event) => {
                         event.stopPropagation();
                         setClaimQrEpisode(episode);
@@ -541,7 +546,7 @@ export default function PatientDashboard() {
                           <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
                           <p className="text-xs text-neutral-500">{formatDate(record.timestamp)}</p>
                         </div>
-                        <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => openIpfs(record.ipfsCid)}>
+ <Button size="sm" className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90" onClick={() => openIpfs(record.ipfsCid)}>
                           <Eye className="mr-1 h-4 w-4" />
                           View
                         </Button>
@@ -552,7 +557,8 @@ export default function PatientDashboard() {
               </AccordionContent>
             </AccordionItem>
           ))}
-        </Accordion>
+          </Accordion>
+        </>
       )}
 
       <Accordion type="single" collapsible className="rounded-xl border border-neutral-200 bg-card p-4">
@@ -579,6 +585,7 @@ export default function PatientDashboard() {
 
   const renderAccessControl = () => (
     <div className="grid gap-4 lg:grid-cols-2">
+
       <section className="rounded-xl border border-neutral-200 bg-card p-4">
         <h2 className="mb-3 text-base font-semibold text-foreground">Live Permissions</h2>
         {grants.length === 0 ? (
@@ -588,7 +595,7 @@ export default function PatientDashboard() {
             {grants.map((grant) => {
               const warning = grant.expiresAt ? new Date(grant.expiresAt).getTime() - Date.now() < 60 * 60 * 1000 : false;
               return (
-                <div key={grant.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                <div key={grant.id} className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-3">
                   <p className="text-sm font-semibold text-foreground">
                     <WalletAddress address={grant.doctorAddress || grant.viewerAddress} className="text-foreground" />
                   </p>
@@ -619,18 +626,18 @@ export default function PatientDashboard() {
         <h2 className="mb-3 text-base font-semibold text-foreground">Grant New Access</h2>
         <div className="space-y-3">
           <div className="flex gap-2">
-            <input
-              className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-foreground outline-none"
+            <Input
+              className="border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 text-foreground"
               placeholder="Doctor wallet address"
               value={grantDoctorInput}
               onChange={(event) => setGrantDoctorInput(event.target.value)}
             />
-            <Button type="button" variant="outline" className="border-neutral-200 text-foreground" onClick={() => setScanMode('grant')}>
+            <Button type="button" variant="outline" className="border-neutral-200 dark:border-neutral-800 text-foreground dark:hover:bg-white/5" onClick={() => setScanMode('grant')}>
               <ScanLine className="h-4 w-4" />
             </Button>
           </div>
 
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2">
+          <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-2">
             <p className="mb-2 text-xs text-neutral-500">Select records</p>
             <div className="max-h-40 space-y-1 overflow-auto">
               {records.map((record) => {
@@ -656,7 +663,7 @@ export default function PatientDashboard() {
           </div>
 
           <select
-            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-foreground"
+            className="w-full rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground outline-none"
             value={isCustomDuration ? 'custom' : selectedDuration}
             onChange={(event) => {
               const val = event.target.value;
@@ -669,7 +676,7 @@ export default function PatientDashboard() {
             }}
           >
             {DURATION_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
+              <option key={option.value} value={option.value} className="bg-card text-foreground dark:bg-neutral-900">
                 {option.label}
               </option>
             ))}
@@ -677,9 +684,9 @@ export default function PatientDashboard() {
 
           {isCustomDuration && (
             <div className="flex items-center gap-2">
-              <input
+              <Input
                 type="number"
-                className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-foreground outline-none"
+                className="border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 text-foreground"
                 placeholder="Duration in hours"
                 value={customHours}
                 onChange={(event) => setCustomHours(event.target.value)}
@@ -688,7 +695,7 @@ export default function PatientDashboard() {
             </div>
           )}
 
-          <Button className="w-full bg-indigo-600 text-white hover:bg-indigo-500" disabled={granting} onClick={handleGrantAccess}>
+ <Button className="w-full bg-primary text-primary-foreground font-semibold hover:bg-primary/90" disabled={granting} onClick={handleGrantAccess}>
             <PlusCircle className="mr-2 h-4 w-4" />
             {granting ? 'Granting...' : 'Grant Access'}
           </Button>
@@ -715,12 +722,7 @@ export default function PatientDashboard() {
     </div>
   );
 
-  const renderSettings = () => (
-    <div className="rounded-xl border border-neutral-200 bg-card p-4">
-      <h2 className="mb-2 text-base font-semibold text-foreground">Settings</h2>
-      <p className="text-sm text-neutral-500">Dashboard settings and preferences will appear here.</p>
-    </div>
-  );
+
 
   let content = null;
   if (loading) {
@@ -736,12 +738,12 @@ export default function PatientDashboard() {
   } else if (activeNav === 'appointments') {
     content = renderAppointments();
   } else {
-    content = renderSettings();
+    content = renderOverview();
   }
 
   return (
     <>
-      <AppLayout
+      <DashboardLayout
         title="Patient Dashboard"
         role="PATIENT"
         navItems={NAV_ITEMS}
@@ -753,7 +755,7 @@ export default function PatientDashboard() {
         sidebarActions={sidebarActions}
       >
         {content}
-      </AppLayout>
+      </DashboardLayout>
 
       <QRDisplay
         open={showPatientQr}
@@ -792,44 +794,41 @@ export default function PatientDashboard() {
         }}
       />
 
-      {/* Grant Episode Modal */}
-      {grantEpisodeTarget && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-md mx-4 bg-card border border-neutral-200 rounded-2xl shadow-2xl p-6">
-            <h2 className="text-xl font-bold text-foreground mb-2">Grant Episode Access</h2>
-            <p className="text-sm text-neutral-500 mb-4">
-              Share all <strong>{grantEpisodeTarget.records?.length || 0} records</strong> in "{grantEpisodeTarget.title}" for 24 hours.
-            </p>
-
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <input
-                  className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-foreground outline-none"
-                  placeholder="Doctor or Insurer wallet address"
-                  value={grantEpisodeWallet}
-                  onChange={(e) => setGrantEpisodeWallet(e.target.value)}
-                />
-                <Button variant="outline" className="border-neutral-200 text-foreground" onClick={() => setScanMode('grant-episode')}>
-                  <ScanLine className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setGrantEpisodeTarget(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-emerald-600 text-white hover:bg-emerald-500"
-                  disabled={isGrantingEpisode || !grantEpisodeWallet.trim()}
-                  onClick={handleGrantEpisodeAccess}
-                >
-                  {isGrantingEpisode ? 'Granting...' : 'Confirm Grant'}
-                </Button>
-              </div>
+      <Dialog open={Boolean(grantEpisodeTarget)} onOpenChange={(open) => !open && setGrantEpisodeTarget(null)}>
+        <DialogContent className="border-neutral-200">
+          <DialogHeader>
+            <DialogTitle>Grant Episode Access</DialogTitle>
+            <DialogDescription>
+              Share all <strong>{grantEpisodeTarget?.records?.length || 0} records</strong> in "{grantEpisodeTarget?.title}" for 24 hours.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                className="border-neutral-200 bg-neutral-50"
+                placeholder="Doctor or Insurer wallet address"
+                value={grantEpisodeWallet}
+                onChange={(e) => setGrantEpisodeWallet(e.target.value)}
+              />
+              <Button variant="outline" className="border-neutral-200 text-foreground" onClick={() => setScanMode('grant-episode')}>
+                <ScanLine className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setGrantEpisodeTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-emerald-600 text-white hover:bg-emerald-500"
+                disabled={isGrantingEpisode || !grantEpisodeWallet.trim()}
+                onClick={handleGrantEpisodeAccess}
+              >
+                {isGrantingEpisode ? 'Granting...' : 'Confirm Grant'}
+              </Button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

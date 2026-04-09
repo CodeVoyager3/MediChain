@@ -27,10 +27,10 @@ import InsurerDashboard from './components/dashboard/InsurerDashboard';
 function LandingPage() {
     return (
         <div className="flex flex-col bg-background overflow-x-hidden w-full">
-            <div id="hero"><HeroSection /></div>
-            
+            <HeroSection />
+
             {/* Wrapper for the rest of the sections to introduce consistent gaps */}
-            <div className="flex flex-col gap-y-24 md:gap-y-32 py-16">
+            <div className="flex flex-col gap-y-24 md:gap-y-32 pb-16">
                 <MissionSection />
                 <ChallengesSection />
                 <CoreCapabilitiesBentoGrid />

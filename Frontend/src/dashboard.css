@@ -1,0 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* .watermelon-theme overrides removed to prioritize index.css project theme */
+.watermelon-theme {
+  --radius: 0.75rem;
+}
+
+.dark .watermelon-theme {
+  --radius: 0.75rem;
+}

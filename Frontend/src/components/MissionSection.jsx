@@ -78,7 +78,7 @@ export function MissionSection() {
       {/* Top thin accent line */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-20 bg-gradient-to-b from-transparent via-border to-transparent" />
 
-      <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center px-6 pb-20 pt-24 text-center">
+      <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center px-6 pb-20 pt-8 text-center">
 
         {/* Badge */}
         <Badge>Our Mission</Badge>

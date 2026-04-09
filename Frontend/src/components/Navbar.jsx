@@ -2,20 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { createThirdwebClient } from "thirdweb";
-import { ConnectButton, useActiveAccount, useActiveWalletChain, lightTheme, useDisconnect, useActiveWallet } from "thirdweb/react";
+import { ConnectButton, useActiveAccount, useActiveWalletChain, lightTheme, darkTheme, useDisconnect, useActiveWallet } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { polygonAmoy } from "thirdweb/chains";
 import { useAuth } from '../context/AuthContext';
 import { AnimatedThemeToggler } from './magicui/animated-theme-toggler';
 
-const customTheme = lightTheme({
-  colors: {
-    primaryButtonBg: "hsl(144, 21%, 85%)", // Soft Mint / Creme
-    primaryButtonText: "hsl(220, 41%, 32%)", // Steel Blue
-    accentButtonBg: "hsl(144, 21%, 85%)",
-    accentButtonText: "hsl(220, 41%, 32%)",
-  },
-});
+
 
 const navLinks = [
   { label: 'About', href: '#about' },
@@ -45,6 +38,7 @@ export function Navbar({
   pillTextColor,
   initialLoadAnimation = true
 }) {
+  const [isDark, setIsDark] = useState(false);
   const resolvedPillTextColor = pillTextColor ?? baseColor;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const circleRefs = useRef([]);
@@ -56,6 +50,24 @@ export function Navbar({
   const mobileMenuRef = useRef(null);
   const navItemsRef = useRef(null);
   const logoRef = useRef(null);
+
+  useEffect(() => {
+    // Check initial theme
+    setIsDark(document.documentElement.classList.contains('dark'));
+
+    // Listen for theme changes
+    const updateTheme = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   // --- Start Business Logic Integration ---
   const { login, isAuthenticated, user, logout } = useAuth();
@@ -449,7 +461,7 @@ export function Navbar({
             <ConnectButton
               client={client}
               wallets={wallets}
-              theme={customTheme}
+              theme={isDark ? darkTheme() : lightTheme()}
               chain={polygonAmoy}
               connectModal={{ size: 'compact' }}
               connectButton={{ 
@@ -535,7 +547,7 @@ export function Navbar({
             <ConnectButton
               client={client}
               wallets={wallets}
-              theme={customTheme}
+              theme={isDark ? darkTheme() : lightTheme()}
               chain={polygonAmoy}
               connectModal={{ size: 'compact' }}
               connectButton={{ 

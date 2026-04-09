@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { createThirdwebClient } from "thirdweb";
-import { ConnectButton, lightTheme } from "thirdweb/react";
+import { ConnectButton, lightTheme, darkTheme } from "thirdweb/react";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 
 /* ─── Font injection ─── */
@@ -15,14 +15,7 @@ if (!document.head.querySelector('[data-fonts="hero"]')) {
 }
 
 /* ─── Thirdweb ─── */
-const customTheme = lightTheme({
-  colors: {
-    primaryButtonBg: "hsl(144, 21%, 85%)",
-    primaryButtonText: "hsl(220, 41%, 32%)",
-    accentButtonBg: "hsl(144, 21%, 85%)",
-    accentButtonText: "hsl(220, 41%, 32%)",
-  },
-});
+
 
 const client = createThirdwebClient({
   clientId: import.meta.env.VITE_CLIENT_ID,
@@ -71,7 +64,7 @@ export function HeroSection() {
   }, []);
   return (
     <section
-      className="relative min-h-screen flex"
+      className="relative min-h-screen flex flex-col overflow-hidden"
       style={{ fontFamily: "'Inter', sans-serif" }}
     >
       {/* Background image — theme aware */}
@@ -89,13 +82,13 @@ export function HeroSection() {
         }}
       />
 
-      {/* Gradient overlay — symmetrical for centered text legibility */}
+      {/* Gradient overlay — smooth transition to bottom ── */}
       <div
         className="absolute inset-0 z-[1]"
         style={{
           background: isDark
-            ? 'radial-gradient(circle at center, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.75) 60%, rgba(0,0,0,0.8) 100%)'
-            : 'radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.6) 100%)',
+            ? 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.3) 100%)'
+            : 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.2) 100%)',
           transform: 'scale(1.05)',
           transformOrigin: 'center center',
         }}
@@ -105,8 +98,8 @@ export function HeroSection() {
 
       {/* ── Main content ── */}
       <div
-        className="relative z-10 flex flex-col items-center w-full mx-auto pt-32 md:pt-40 pb-16"
-        style={{ paddingLeft: 'clamp(1rem, 5vw, 2.5rem)', paddingRight: 'clamp(1rem, 5vw, 2.5rem)', maxWidth: '75rem', minHeight: '100vh' }}
+        className="relative z-10 flex flex-col items-center w-full mx-auto pt-32 md:pt-40"
+        style={{ paddingLeft: 'clamp(1rem, 5vw, 2.5rem)', paddingRight: 'clamp(1rem, 5vw, 2.5rem)', maxWidth: '75rem' }}
       >
 
 
@@ -187,7 +180,7 @@ export function HeroSection() {
           <ConnectButton
             client={client}
             wallets={wallets}
-            theme={customTheme}
+            theme={isDark ? darkTheme() : lightTheme()}
             connectModal={{ size: 'wide' }}
             connectButton={{
               label: 'Connect Wallet',
