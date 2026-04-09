@@ -5,7 +5,7 @@ import { upload } from "thirdweb/storage";
 
 const client = createThirdwebClient({ clientId: import.meta.env.VITE_CLIENT_ID });
 
-import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye, Edit } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye, Edit, QrCode } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -75,6 +75,7 @@ export default function DoctorDashboard() {
 
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [manualSearchQuery, setManualSearchQuery] = useState('');
+    const [qrPayloadInput, setQrPayloadInput] = useState('');
 
     const [fileToMint, setFileToMint] = useState(null);
     const [patientAddressToMint, setPatientAddressToMint] = useState('');
@@ -235,6 +236,19 @@ export default function DoctorDashboard() {
         }
     };
 
+    const handleScanQrPayload = async () => {
+        if (!qrPayloadInput.trim()) return;
+        try {
+            const parsed = JSON.parse(qrPayloadInput);
+            const patientFromQr = parsed?.patientAddress || parsed?.patientWallet || '';
+            if (!patientFromQr) throw new Error('QR payload missing patientAddress.');
+            await handleSelectPatient(patientFromQr);
+            setQrPayloadInput('');
+        } catch (err) {
+            setErrorMsg('Invalid QR payload. Paste a valid MediChain QR payload JSON.');
+        }
+    };
+
     const validRecords = grantedRecords.filter((r) => {
         const recId = getRecordId(r);
         if (recId === undefined || recId === null) return false;
@@ -302,6 +316,13 @@ export default function DoctorDashboard() {
                                                 <button onClick={() => handleSelectPatient(manualSearchQuery)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded">Find</button>
                                                 {selectedPatient && <button onClick={() => setSelectedPatient(null)} className="text-[10px] bg-red-950/30 text-red-400 px-2 py-1 rounded hover:bg-red-900/50 transition">Close Patient</button>}
                                             </div>
+                                        </div>
+                                        <div className="mb-4 flex items-center gap-2">
+                                            <div className="relative flex-1">
+                                                <QrCode className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+                                                <input type="text" placeholder='Paste QR payload JSON {"patientAddress":"0x..."}' value={qrPayloadInput} onChange={(e) => setQrPayloadInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleScanQrPayload()} className="w-full border rounded-lg pl-8 pr-2 py-2 text-[10px] font-mono bg-background" />
+                                            </div>
+                                            <button onClick={handleScanQrPayload} className="text-[10px] bg-secondary/20 text-secondary px-2.5 py-2 rounded">Scan</button>
                                         </div>
                                         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
                                             {!selectedPatient ? (

@@ -6,7 +6,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -27,4 +26,7 @@ public interface AccessGrantRepository extends JpaRepository<AccessGrant, UUID> 
 	// Fetch active grants for a SPECIFIC patient and doctor combination
 	List<AccessGrant> findByViewerAddressIgnoreCaseAndPatientAddressIgnoreCaseAndExpiresAtAfter(
 			String viewerAddress, String patientAddress, LocalDateTime currentTime);
+
+	boolean existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndExpiresAtAfter(
+			String patientAddress, String viewerAddress, Long recordId, LocalDateTime currentTime);
 }

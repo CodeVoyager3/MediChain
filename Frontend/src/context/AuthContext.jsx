@@ -107,6 +107,17 @@ export function AuthProvider({ children }) {
         }
     }, [disconnect, wallet]);
 
+    useEffect(() => {
+        const onUnauthorized = () => {
+            logout();
+            if (window.location.pathname !== '/') {
+                window.location.href = '/';
+            }
+        };
+        window.addEventListener('medichain:unauthorized', onUnauthorized);
+        return () => window.removeEventListener('medichain:unauthorized', onUnauthorized);
+    }, [logout]);
+
     const value = { user, token, isAuthenticated, isLoading, showRegister, setShowRegister, login, register, logout, isCorrectNetwork, switchNetwork: () => switchChain(polygonAmoy) };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

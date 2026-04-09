@@ -15,4 +15,6 @@ public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, Lo
 	List<MedicalRecord> findByDoctorAddressIgnoreCase(String doctorAddress);
 	
 	List<MedicalRecord> findByDoctorAddressIgnoreCaseAndPatientAddressIgnoreCase(String doctorAddress, String patientAddress);
+
+	List<MedicalRecord> findByPatientAddressIgnoreCaseAndEpisodeIdOrderByRecordIdDesc(String patientAddress, Long episodeId);
 }

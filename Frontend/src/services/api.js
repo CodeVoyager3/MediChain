@@ -54,6 +54,12 @@ async function request(method, path, body = null) {
     let data; try { data = await res.json(); } catch { data = {}; }
 
     if (!res.ok) {
+        if (res.status === 401) {
+            localStorage.removeItem('medichain_jwt');
+            localStorage.removeItem('medichain_user');
+            window.dispatchEvent(new CustomEvent('medichain:unauthorized'));
+        }
+
         let msg = data?.message || data?.error || `Request failed (${res.status})`;
 
         // GLOBAL FIX: Strip out ugly Java stack traces from the UI
@@ -69,10 +75,22 @@ async function request(method, path, body = null) {
     return data;
 }
 
-export function requestNonce(walletAddress) { return request('POST', '/api/v1/auth/nonce', { walletAddress }); }
-export function verifySignature(walletAddress, signature) { return request('POST', '/api/v1/auth/verify', { walletAddress, signature }); }
-export function registerUser(name, role) { return request('POST', '/api/v1/users/register', { name, role }); }
-export function getUserProfile(walletAddress) { return request('GET', `/api/v1/users/profile/${walletAddress}`); }
+export async function requestNonce(walletAddress) {
+    const res = await request('POST', '/api/v1/auth/nonce', { walletAddress });
+    return { ...res, messageToSign: res.messageToSign ?? res.data?.messageToSign };
+}
+export async function verifySignature(walletAddress, signature) {
+    const res = await request('POST', '/api/v1/auth/verify', { walletAddress, signature });
+    return { ...res, token: res.token ?? res.data?.token };
+}
+export async function registerUser(name, role) {
+    const res = await request('POST', '/api/v1/users/register', { name, role });
+    return { ...res, user: res.user ?? res.data?.user };
+}
+export async function getUserProfile(walletAddress) {
+    const res = await request('GET', `/api/v1/users/profile/${walletAddress}`);
+    return { ...res, user: res.user ?? res.data?.user };
+}
 
 // --- Patient Methods ---
 export async function getPatientVault() {
@@ -151,5 +169,13 @@ export function viewRecordAsInsurer(insurerAddress, patientAddress, recordId) {
         insurerAddress,
         patientAddress,
         recordId,
+    });
+}
+
+export function verifyEpisodeAsInsurer(insurerAddress, patientAddress, episodeId) {
+    return request('POST', '/api/v1/blockchain/insurer/verify-episode', {
+        insurerAddress,
+        patientAddress,
+        episodeId,
     });
 }

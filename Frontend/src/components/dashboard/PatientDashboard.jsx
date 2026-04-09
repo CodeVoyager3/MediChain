@@ -270,6 +270,20 @@ export default function PatientDashboard() {
         } catch (err) { setErrorMsg(err.message); } finally { setRevokingId(null); }
     };
 
+    const qrPayload = JSON.stringify({
+        type: 'MEDICHAIN_PATIENT',
+        patientAddress: user?.walletAddress || '',
+        issuedAt: new Date().toISOString(),
+    });
+    const qrUrl = `https://quickchart.io/qr?size=180&text=${encodeURIComponent(qrPayload)}`;
+    const copyQrPayload = async () => {
+        try {
+            await navigator.clipboard.writeText(qrPayload);
+        } catch {
+            setErrorMsg('Unable to copy QR payload.');
+        }
+    };
+
     return (
         <div className="flex h-screen overflow-hidden font-body bg-background">
             <div className="hidden lg:flex"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} /></div>
@@ -352,6 +366,20 @@ export default function PatientDashboard() {
                                         </div>
                                     </div>
                                 )}
+
+                                <div className="border rounded-2xl p-4 bg-background/40">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-[12px] font-semibold uppercase tracking-tight flex items-center gap-2"><QrCode className="w-4 h-4 text-secondary" /> QR MVP (Patient Identity)</h3>
+                                        <button onClick={copyQrPayload} className="text-[10px] text-secondary hover:underline">Copy Payload</button>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                                        <img src={qrUrl} alt="Patient QR Payload" className="w-28 h-28 rounded-lg border border-border bg-white p-1" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] text-muted-foreground mb-1">Doctor can paste this payload in Doctor Dashboard scan box.</p>
+                                            <p className="text-[9px] font-mono break-all text-muted-foreground/80">{qrPayload}</p>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <div>
                                     <h3 className="text-[14px] font-semibold mb-4 uppercase tracking-tighter flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-secondary"/> Live Permissions</h3>

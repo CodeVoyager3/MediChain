@@ -1,13 +1,16 @@
 package org.medichain.backend.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.medichain.backend.dto.ApiResponse;
 import org.medichain.backend.dto.CheckAccessRequest;
 import org.medichain.backend.dto.GrantAccessRequest;
+import org.medichain.backend.dto.InsurerVerifyEpisodeRequest;
 import org.medichain.backend.dto.InsurerViewRequest;
 import org.medichain.backend.dto.MintRecordRequest;
 import org.medichain.backend.dto.RevokeAccessRequest;
 import org.medichain.backend.service.BlockchainService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -25,6 +28,7 @@ public class BlockchainController {
 	}
 	
 	@PostMapping("/mint")
+	@PreAuthorize("hasRole('DOCTOR')")
 	public ResponseEntity<?> mintRecord(@RequestBody MintRecordRequest request) {
 		try {
 			// Pass the recordType and optional episodeId to the service
@@ -35,24 +39,22 @@ public class BlockchainController {
 					request.getRecordType(),
 					request.getEpisodeId()
 			);
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"transactionHash", txHash
-			));
+			return ResponseEntity.ok(ApiResponse.success(Map.of("transactionHash", txHash)));
 		}
 		catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("MINT_FAILED", e.getMessage()));
 		}
 	}
 	
 	@GetMapping("/active-grants")
+	@PreAuthorize("hasRole('PATIENT')")
 	public ResponseEntity<?> getActiveGrants() {
 		try {
 			String patientWallet = (String) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 			var grants = blockchainService.getActiveGrants(patientWallet);
-			return ResponseEntity.ok(Map.of("status", "success", "data", grants));
+			return ResponseEntity.ok(ApiResponse.success(grants));
 		} catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("ACTIVE_GRANTS_FETCH_FAILED", e.getMessage()));
 		}
 	}
 	
@@ -61,32 +63,25 @@ public class BlockchainController {
 		try {
 			log.info("Received REST API request to CHECK ACCESS.");
 			
-			boolean isAuthorized = blockchainService.checkRecordAccess(
+			boolean isAuthorized = blockchainService.checkRecordAccessWithSqlEnforcement(
 					request.getPatientAddress(),
 					request.getDoctorAddress(),
 					request.getRecordId()
 			);
 			
 			if (isAuthorized) {
-				return ResponseEntity.ok(Map.of(
-						"status", "success",
-						"authorized", true,
-						"message", "Doctor is authorized to view this record."
-				));
+				return ResponseEntity.ok(ApiResponse.success("Doctor is authorized to view this record.", Map.of("authorized", true)));
 			} else {
-				return ResponseEntity.status(403).body(Map.of(
-						"status", "denied",
-						"authorized", false,
-						"message", "Access denied. The doctor does not have active permission."
-				));
+				return ResponseEntity.status(403).body(ApiResponse.error("ACCESS_DENIED", "Access denied. The doctor does not have active permission."));
 			}
 		}
 		catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("CHECK_ACCESS_FAILED", e.getMessage()));
 		}
 	}
 	
 	@PostMapping("/grant-access")
+	@PreAuthorize("hasRole('PATIENT')")
 	public ResponseEntity<?> grantAccess(@RequestBody GrantAccessRequest request) {
 		try {
 			log.info("Received REST API request to GRANT ACCESS.");
@@ -95,18 +90,15 @@ public class BlockchainController {
 					request.getRecordIds(),
 					request.getDurationInSeconds()
 			);
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"message", "Temporary access granted to doctor.",
-					"transactionHash", txHash
-			));
+			return ResponseEntity.ok(ApiResponse.success("Temporary access granted to doctor.", Map.of("transactionHash", txHash)));
 		}
 		catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("GRANT_ACCESS_FAILED", e.getMessage()));
 		}
 	}
 	
 	@PostMapping("/revoke-access")
+	@PreAuthorize("hasRole('PATIENT')")
 	public ResponseEntity<?> revokeAccess(@RequestBody RevokeAccessRequest request) {
 		try {
 			log.info("Received REST API request to REVOKE ACCESS.");
@@ -114,18 +106,15 @@ public class BlockchainController {
 					request.getDoctorAddress(),
 					request.getRecordId()
 			);
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"message", "Access immediately revoked.",
-					"transactionHash", txHash
-			));
+			return ResponseEntity.ok(ApiResponse.success("Access immediately revoked.", Map.of("transactionHash", txHash)));
 		}
 		catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("REVOKE_ACCESS_FAILED", e.getMessage()));
 		}
 	}
 	
 	@PostMapping("/insurer/view-record")
+	@PreAuthorize("hasRole('INSURER')")
 	public ResponseEntity<?> viewRecordAsInsurer(@RequestBody InsurerViewRequest request) {
 		try {
 			log.info("Received REST API request: Insurer View Record via DTO.");
@@ -136,20 +125,33 @@ public class BlockchainController {
 					request.getRecordId()
 			);
 			
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"message", "Fraud check passed. Record retrieved successfully.",
-					"data", securePayload
-			));
+			return ResponseEntity.ok(ApiResponse.success("Fraud check passed. Record retrieved successfully.", securePayload));
 			
 		} catch (Exception e) {
-			if ("ACCESS_DENIED".equals(e.getMessage())) {
-				return ResponseEntity.status(403).body(Map.of(
-						"status", "error",
-						"message", "Access Denied. Patient has not granted access or it has expired."
-				));
+			if ("ACCESS_DENIED_SQL_EXPIRED".equals(e.getMessage()) || "ACCESS_DENIED_CHAIN".equals(e.getMessage())) {
+				return ResponseEntity.status(403).body(ApiResponse.error("ACCESS_DENIED", "Access denied. Patient has not granted access or it has expired."));
 			}
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			if ("RECORD_NOT_FOUND".equals(e.getMessage())) {
+				return ResponseEntity.status(404).body(ApiResponse.error("RECORD_NOT_FOUND", "Record not found."));
+			}
+			return ResponseEntity.internalServerError().body(ApiResponse.error("INSURER_VIEW_FAILED", e.getMessage()));
+		}
+	}
+
+	@PostMapping("/insurer/verify-episode")
+	@PreAuthorize("hasRole('INSURER')")
+	public ResponseEntity<?> verifyEpisodeAsInsurer(@RequestBody InsurerVerifyEpisodeRequest request) {
+		try {
+			Map<String, Object> payload = blockchainService.verifyEpisodeForInsurer(
+					request.getInsurerAddress(),
+					request.getPatientAddress(),
+					request.getEpisodeId()
+			);
+			return ResponseEntity.ok(ApiResponse.success("Episode verification complete.", payload));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(ApiResponse.error("EPISODE_NOT_FOUND", e.getMessage()));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body(ApiResponse.error("VERIFY_EPISODE_FAILED", e.getMessage()));
 		}
 	}
 }
