@@ -321,16 +321,24 @@ public class BlockchainService {
 				var ruleResult = episodeRuleService.analyzeRecords(records);
 				
 				Map<String, Object> llmFindings;
+				Map<String, Object> metaJson;
+				
 				if (episode != null) {
-					var metaJson = episodeMetadataBuilder.buildMetadata(episode, records);
-					if (ruleResult.getScore() < 40) { // Only call Gemini if rules degraded score
-						llmFindings = geminiAnalysisService.analyze(metaJson, ruleResult.getFindings());
-					} else {
-						llmFindings = Map.of("additional_anomalies", List.of(), "risk_level", "LOW", "confidence", 100, "reasoning", "All Layer-1 Rules Passed. LLM Skipped.", "recommendation", "APPROVE");
-					}
+					metaJson = episodeMetadataBuilder.buildMetadata(episode, records);
 				} else {
-					llmFindings = Map.of("additional_anomalies", List.of(), "risk_level", "UNKNOWN", "confidence", 0, "reasoning", "Episode metadata null.", "recommendation", "REVIEW");
+					log.warn("Episode [{}] not found in DB. Falling back to records-only metadata for AI analysis.", episodeId);
+					metaJson = Map.of(
+							"episodeId", episodeId,
+							"patientAddress", patientAddress,
+							"note", "Missing formal Episode metadata, analyzing raw records."
+							// Passing full records object explicitly might be too big, we rely on the rule engine findings mostly during fallback
+					);
 				}
+				
+				log.info("Triggering AI Analysis (Gemini) for Episode {}. Rule Engine Score: {}", episodeId, ruleResult.getScore());
+				llmFindings = geminiAnalysisService.analyze(metaJson, ruleResult.getFindings());
+				
+				log.info("AI Analysis completed. Risk Level: {}, Confidence: {}", llmFindings.get("risk_level"), llmFindings.get("confidence"));
 				
 				// Take the first verified record's base score as an indicator, or sum them. For now, max 40 via our logic map.
 				Map<String, Object> firstValidChecks = (Map<String, Object>) verifiedRecords.get(0).get("securityChecks");
