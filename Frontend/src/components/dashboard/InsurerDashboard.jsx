@@ -89,7 +89,14 @@ function VerificationCheckRow({ icon: Icon, label, description, verified, delay 
 }
 
 function TrustScore({ providerVerified, integrityValid, isLatestVersion }) {
-    const score = (providerVerified ? 40 : 0) + (integrityValid ? 40 : 0) + (isLatestVersion ? 20 : 10);
+    const SCORE_PROVIDER = 40;
+    const SCORE_INTEGRITY = 40;
+    const SCORE_LATEST = 20;
+    const SCORE_SUPERSEDED = 10;
+
+    const score = (providerVerified ? SCORE_PROVIDER : 0)
+        + (integrityValid ? SCORE_INTEGRITY : 0)
+        + (isLatestVersion ? SCORE_LATEST : SCORE_SUPERSEDED);
     const tier = score >= 90 ? 'HIGH' : score >= 60 ? 'MEDIUM' : 'LOW';
     const colors = {
         HIGH: { bg: 'bg-emerald-900/20', border: 'border-emerald-500/40', text: 'text-emerald-400', dot: 'bg-emerald-500' },

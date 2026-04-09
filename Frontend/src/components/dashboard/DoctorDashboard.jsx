@@ -176,6 +176,7 @@ export default function DoctorDashboard() {
             console.log("Uploading to IPFS via Thirdweb...");
             const uri = await upload({ client, files: [fileToMint] });
             const epId = selectedEpisodeId ? parseInt(selectedEpisodeId, 10) : null;
+            if (selectedEpisodeId && isNaN(epId)) { setErrorMsg("Invalid episode selection."); return; }
             await mintRecord(targetAddress, uri, fileToMint.name, null, epId);
 
             setFileToMint(null);
