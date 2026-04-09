@@ -1,8 +1,16 @@
-/**
- * MediChain — Centralized API Client
- * Dashboard-focused, with graceful fallback between V2 and legacy endpoints.
- */
-const API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+let API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+
+// --- Robust URL Sanitization ---
+if (API_BASE) {
+  API_BASE = API_BASE.trim();
+  // Ensure it starts with a protocol (default to https for production safety)
+  if (!API_BASE.startsWith('http')) {
+    API_BASE = `https://${API_BASE}`;
+  }
+  // Remove trailing slashes to prevent double-slashes in fetch calls (e.g. https://api.com//api/v1)
+  API_BASE = API_BASE.replace(/\/+$/, '');
+}
+// -----------------------------
 
 const TOKEN_KEY = 'medichain_jwt';
 const STORAGE_PREFIX = 'medichain_';
