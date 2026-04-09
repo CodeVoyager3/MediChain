@@ -101,9 +101,26 @@ public class BlockchainService {
 	}
 	
 	@Transactional
-	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId, String recordType, Long episodeId) {
+		public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId, String recordType, Long episodeId) {
 		try {
 			String doctorAddress = getAuthenticatedWalletAddress();
+			
+			Long finalEpisodeId = episodeId;
+			if (previousRecordId != null && previousRecordId > 0) {
+				var oldRecordOpt = medicalRecordRepository.findById(previousRecordId);
+				if (oldRecordOpt.isPresent()) {
+					var oldRecord = oldRecordOpt.get();
+					oldRecord.setSuperseded(true);
+					medicalRecordRepository.save(oldRecord);
+					
+					// Inherit Episode ID if not provided explicitly
+					if (finalEpisodeId == null && oldRecord.getEpisodeId() != null) {
+						log.info("Inheriting Episode ID [{}] from previous record [{}] for new amendment.", 
+								oldRecord.getEpisodeId(), previousRecordId);
+						finalEpisodeId = oldRecord.getEpisodeId();
+					}
+				}
+			}
 			
 			var receipt = smartContract.mintRecord(patientWalletAddress, ipfsCid).send();
 			String transactionHash = receipt.getTransactionHash();
@@ -111,23 +128,15 @@ public class BlockchainService {
 			List<MedRecordNFT.RecordMintedEventResponse> events = smartContract.getRecordMintedEvents(receipt);
 			Long recordId = events.isEmpty() ? System.currentTimeMillis() : events.get(0).tokenId.longValue();
 			
-			if (previousRecordId != null && previousRecordId > 0) {
-				medicalRecordRepository.findById(previousRecordId).ifPresent(oldRecord -> {
-					oldRecord.setSuperseded(true);
-					medicalRecordRepository.save(oldRecord);
-				});
-			}
-			
 			MedicalRecord record = new MedicalRecord();
 			record.setRecordId(recordId);
 			record.setPatientAddress(patientWalletAddress);
 			record.setDoctorAddress(doctorAddress);
 			record.setIpfsCid(ipfsCid);
-			// FIX: No longer hardcoded.
 			record.setRecordType(recordType != null && !recordType.isEmpty() ? recordType : "Medical Record");
 			record.setSuperseded(false);
 			record.setPreviousRecordId(previousRecordId);
-			record.setEpisodeId(episodeId);
+			record.setEpisodeId(finalEpisodeId);
 			record.setTxHash(transactionHash);
 			
 			medicalRecordRepository.save(record);
