@@ -1,53 +1,51 @@
-import React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useMemo } from 'react';
+import { Download, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-export function QRDisplay({ isOpen, onClose, payload, title = "Scan QR Code" }) {
-    if (!isOpen) return null;
+export default function QRDisplay({ open, payload, title, subtitle, onClose }) {
+  const value = useMemo(() => JSON.stringify(payload || {}), [payload]);
+  const qrUrl = useMemo(
+    () => `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(value)}`,
+    [value]
+  );
 
-    const qrDataString = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  if (!open) return null;
 
-    return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-                onClick={onClose}
-            >
-                <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="bg-background border border-border shadow-2xl rounded-2xl w-full max-w-sm overflow-hidden"
-                >
-                    <div className="flex items-center justify-between p-4 border-b border-border">
-                        <h3 className="font-semibold text-sm">{title}</h3>
-                        <button onClick={onClose} className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                    
-                    <div className="p-8 flex flex-col items-center justify-center bg-white">
-                        <div className="p-4 bg-white rounded-xl shadow-sm border border-slate-100">
-                            <QRCodeSVG 
-                                value={qrDataString} 
-                                size={220} 
-                                bgColor="#ffffff" 
-                                fgColor="#000000" 
-                                level="H"
-                            />
-                        </div>
-                    </div>
-                    
-                    <div className="p-4 bg-muted/30 border-t border-border text-center">
-                        <p className="text-xs text-muted-foreground">Scan with MediChain App or compatible scanner</p>
-                    </div>
-                </motion.div>
-            </motion.div>
-        </AnimatePresence>
-    );
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(value)}`;
+    link.download = 'MediChain-QR.png';
+    link.click();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4">
+      <div className="relative w-full max-w-md rounded-xl border border-[#334155] bg-[#0F172A] p-6 text-center">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 rounded p-1 text-[#94A3B8] hover:bg-[#1E293B] hover:text-[#F1F5F9]"
+          aria-label="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <h3 className="text-base font-semibold text-[#F1F5F9]">{title}</h3>
+        <p className="mt-1 text-sm text-[#94A3B8]">{subtitle}</p>
+
+        <div className="mt-4 inline-flex rounded-lg bg-white p-3">
+          <img src={qrUrl} alt="Generated QR Code" width={256} height={256} />
+        </div>
+
+        <Button
+          type="button"
+          onClick={handleDownload}
+          className="mt-4 bg-[#1A73E8] text-white hover:bg-[#1A73E8]/90"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Download QR
+        </Button>
+      </div>
+    </div>
+  );
 }

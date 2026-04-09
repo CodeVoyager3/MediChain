@@ -7,10 +7,10 @@ const ChallengesSection = () => {
   return (
     <section id="challenges" className="relative flex min-h-screen items-center justify-center overflow-x-hidden bg-background py-20 px-6 font-sans text-foreground md:p-10 lg:p-12">
       <div className="mx-auto w-full max-w-7xl">
-        
+
         {/* Section Header */}
         <div className="text-center mb-16 max-w-2xl mx-auto">
-          <motion.h2 
+          <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -18,7 +18,7 @@ const ChallengesSection = () => {
           >
             The Healthcare System is Broken.
           </motion.h2>
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -30,7 +30,7 @@ const ChallengesSection = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          
+
           {/* Card 1: Fragmented Data (Large Top Left) */}
           <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-0 text-foreground shadow-2xl ring-0 transition-all duration-300 hover:border-border/80 md:col-span-12 lg:col-span-7 md:lg:rounded-tl-[40px]">
             <CardContent className="relative flex w-full flex-1 flex-col items-center justify-center p-0 md:max-h-[320px]">
@@ -141,20 +141,18 @@ const Card1 = () => {
 
       <div className="flex items-center gap-2 px-4 py-2 md:gap-5 md:px-6 border-b border-border/20">
         <button
-          className={`border-b-2 py-1 text-xs font-semibold font-body transition-all duration-300 md:text-sm ${
-            activeTab === 'current'
-              ? 'border-rose-500 text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground/80'
-          }`}
+          className={`border-b-2 py-1 text-xs font-semibold font-body transition-all duration-300 md:text-sm ${activeTab === 'current'
+            ? 'border-rose-500 text-foreground'
+            : 'border-transparent text-muted-foreground hover:text-foreground/80'
+            }`}
         >
           Traditional System
         </button>
         <button
-          className={`border-b-2 py-1 text-xs font-semibold font-body transition-all duration-300 md:text-sm ${
-            activeTab === 'medichain'
-              ? 'border-emerald-500 text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground/80'
-          }`}
+          className={`border-b-2 py-1 text-xs font-semibold font-body transition-all duration-300 md:text-sm ${activeTab === 'medichain'
+            ? 'border-emerald-500 text-foreground'
+            : 'border-transparent text-muted-foreground hover:text-foreground/80'
+            }`}
         >
           MediChain Vault
         </button>
@@ -172,18 +170,18 @@ const Card1 = () => {
               className="flex flex-col items-start justify-center gap-4 h-full"
             >
               <div className="flex items-center gap-3 w-full p-3 rounded-lg border border-rose-500/20 bg-rose-500/5">
-                 <Hospital className="text-rose-500 w-5 h-5" />
-                 <div>
-                    <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">Apollo Hospital DB</p>
-                    <p className="text-sm text-muted-foreground">Blood Test 2024 - <span className="text-xs italic">Inaccessible</span></p>
-                 </div>
+                <Hospital className="text-rose-500 w-5 h-5" />
+                <div>
+                  <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">Apollo Hospital DB</p>
+                  <p className="text-sm text-muted-foreground">Blood Test 2024 - <span className="text-xs italic">Inaccessible</span></p>
+                </div>
               </div>
               <div className="flex items-center gap-3 w-full p-3 rounded-lg border border-rose-500/20 bg-rose-500/5">
-                 <Activity className="text-rose-500 w-5 h-5" />
-                 <div>
-                    <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">City Clinic Server</p>
-                    <p className="text-sm text-muted-foreground">MRI Scan 2025 - <span className="text-xs italic">Inaccessible</span></p>
-                 </div>
+                <Activity className="text-rose-500 w-5 h-5" />
+                <div>
+                  <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">City Clinic Server</p>
+                  <p className="text-sm text-muted-foreground">MRI Scan 2025 - <span className="text-xs italic">Inaccessible</span></p>
+                </div>
               </div>
             </motion.div>
           ) : (
@@ -196,16 +194,16 @@ const Card1 = () => {
               className="flex flex-col items-center justify-center gap-4 h-full"
             >
               <div className="flex items-center gap-3 w-full p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 shadow-inner">
-                 <div className="p-2 bg-emerald-500/20 rounded-md">
-                   <Database className="text-emerald-500 w-6 h-6" />
-                 </div>
-                 <div className="flex-1">
-                    <div className="flex justify-between items-center mb-1">
-                        <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Patient Web3 Wallet</p>
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Synced</span>
-                    </div>
-                    <p className="text-sm font-medium text-foreground">All records securely fetched from IPFS via Polygon Smart Contract.</p>
-                 </div>
+                <div className="p-2 bg-emerald-500/20 rounded-md">
+                  <Database className="text-emerald-500 w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Patient Web3 Wallet</p>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Synced</span>
+                  </div>
+                  <p className="text-sm font-medium text-foreground">All records securely fetched from IPFS via Polygon Smart Contract.</p>
+                </div>
               </div>
             </motion.div>
           )}
@@ -216,87 +214,15 @@ const Card1 = () => {
 };
 
 
-const lines = [
-  "// Centralized server vulnerability",
-  "",
-  "const hospitalDB = {",
-  "  status: 'vulnerable',",
-  "  encryption: 'standard',",
-  "  patientData: 'exposed'",
-  "};",
-  "",
-  "> Ransomware attack detected.",
-  "> Database compromised..."
-];
-
-const typingSpeed = 40; 
-const lineDelay = 600;  
-const restartDelay = 1500;
-
 const Card2 = () => {
-  const [displayedLines, setDisplayedLines] = useState([""]);
-  const [currentLine, setCurrentLine] = useState(0);
-  const [currentChar, setCurrentChar] = useState(0);
-
-  useEffect(() => {
-    if (currentLine >= lines.length) {
-      const timeout = setTimeout(() => {
-        setDisplayedLines([""]);
-        setCurrentLine(0);
-        setCurrentChar(0);
-      }, restartDelay);
-      return () => clearTimeout(timeout);
-    }
-
-    if (currentChar < lines[currentLine].length) {
-      const timeout = setTimeout(() => {
-        setDisplayedLines((prev) => {
-          const updated = [...prev];
-          updated[currentLine] =
-            (updated[currentLine] || "") +
-            lines[currentLine][currentChar];
-          return updated;
-        });
-        setCurrentChar((c) => c + 1);
-      }, typingSpeed);
-      return () => clearTimeout(timeout);
-    } else {
-      const timeout = setTimeout(() => {
-        setDisplayedLines((prev) => [...prev, ""]);
-        setCurrentLine((l) => l + 1);
-        setCurrentChar(0);
-      }, lineDelay);
-      return () => clearTimeout(timeout);
-    }
-  }, [currentChar, currentLine]);
-
   return (
-    <div className="flex h-60 sm:h-70 w-80 md:w-110 flex-col rounded-t-xl border-x border-t border-border/40 bg-[#0E1419] mask-b-from-90%">
-      <div className="flex w-full items-center justify-between px-8 border-b border-border/40 py-1">
-        <div className="flex items-center gap-2 py-2">
-          <Lock className="size-4 text-rose-400" />
-          <span className="font-mono text-xs text-rose-400/80">
-            security_alert.log
-          </span>
-        </div>
-      </div>
-      <div className="w-full flex flex-col gap-1 sm:gap-2 p-6 font-mono text-sm">
-        {displayedLines.map((line, index) => (
-          <div key={index} className="flex gap-6">
-            <span className="text-zinc-600">{index + 1}</span>
-            <p className={line.includes('>') ? "text-rose-400 font-bold" : "text-emerald-400/80"}>
-              {line}
-              {index === displayedLines.length - 1 && (
-                <motion.span
-                  className="inline-block w-2 h-4 bg-zinc-400 ml-1"
-                  animate={{ opacity: [0, 1, 0] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
-              )}
-            </p>
-          </div>
-        ))}
-      </div>
+    <div className="group relative h-[280px] w-[90%] md:w-[95%] overflow-hidden rounded-xl border border-border/40 bg-muted/10 shadow-xl transition-all duration-500 hover:border-primary/20">
+      <img
+        src="/patientZeroRecords.png"
+        alt="Patient Zero Records"
+        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
     </div>
   );
 };
@@ -390,11 +316,11 @@ const TimelineItem = ({ index, title, desc }) => {
 };
 
 // Generic Icons for Orbiting Network
-const NetworkIcon1 = ({className}) => <Hospital className={className} />;
-const NetworkIcon2 = ({className}) => <Activity className={className} />;
-const NetworkIcon3 = ({className}) => <Syringe className={className} />;
-const NetworkIcon4 = ({className}) => <HeartPulse className={className} />;
-const NetworkIcon5 = ({className}) => <FileWarning className={className} />;
+const NetworkIcon1 = ({ className }) => <Hospital className={className} />;
+const NetworkIcon2 = ({ className }) => <Activity className={className} />;
+const NetworkIcon3 = ({ className }) => <Syringe className={className} />;
+const NetworkIcon4 = ({ className }) => <HeartPulse className={className} />;
+const NetworkIcon5 = ({ className }) => <FileWarning className={className} />;
 
 const Card4 = () => {
   const icons = [
@@ -419,7 +345,7 @@ const Card4 = () => {
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
       >
         <div className="bg-primary p-4 rounded-xl shadow-lg shadow-primary/20">
-            <span className="font-bold text-primary-foreground font-display tracking-tight text-xl">MediChain</span>
+          <span className="font-bold text-primary-foreground font-display tracking-tight text-xl">MediChain</span>
         </div>
       </motion.div>
 

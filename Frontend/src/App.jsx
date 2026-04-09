@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './components/common/ToastNotification';
 
 // Components
 import { Navbar } from './components/Navbar';
@@ -98,7 +99,9 @@ export default function App() {
     return (
         <BrowserRouter>
             <AuthProvider>
-                <AppContent />
+                <ToastProvider>
+                    <AppContent />
+                </ToastProvider>
             </AuthProvider>
         </BrowserRouter>
     );

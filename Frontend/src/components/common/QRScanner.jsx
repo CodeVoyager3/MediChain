@@ -1,91 +1,61 @@
-import React, { useEffect, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Camera, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState } from 'react';
+import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/common/ToastNotification';
 
-export function QRScanner({ isOpen, onClose, onScanSuccess }) {
-    const [scannerInit, setScannerInit] = useState(false);
+export default function QRScanner({ open, expectedType, onScanSuccess, onClose }) {
+  const [value, setValue] = useState('');
+  const { toast } = useToast();
 
-    useEffect(() => {
-        if (!isOpen) return;
+  if (!open) return null;
 
-        // Small delay to ensure modal DOM is ready before injecting scanner
-        const timer = setTimeout(() => {
-            const scanner = new Html5QrcodeScanner("qr-reader-internal", {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
-                aspectRatio: 1.0,
-                showTorchButtonIfSupported: true
-            }, false);
+  const handleSubmit = () => {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed?.type !== expectedType) {
+        toast(`Wrong QR type. Expected ${expectedType}.`, 'error');
+        return;
+      }
+      onScanSuccess(parsed);
+      setValue('');
+      onClose();
+    } catch {
+      toast('Invalid QR payload. Paste valid JSON data.', 'error');
+    }
+  };
 
-            scanner.render(
-                (decodedText) => {
-                    try {
-                        const payload = JSON.parse(decodedText);
-                        scanner.clear();
-                        onScanSuccess(payload);
-                    } catch (e) {
-                        // If not valid JSON, pass raw string
-                        scanner.clear();
-                        onScanSuccess({ raw: decodedText });
-                    }
-                },
-                (err) => {
-                    // Ignore transient errors
-                }
-            );
-            setScannerInit(true);
+  return (
+    <div className="fixed inset-0 z-[111] flex items-center justify-center bg-black/70 p-4">
+      <div className="relative w-full max-w-lg rounded-xl border border-[#334155] bg-[#0F172A] p-6">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 rounded p-1 text-[#94A3B8] hover:bg-[#1E293B] hover:text-[#F1F5F9]"
+          aria-label="Close scanner"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-            return () => {
-                scanner.clear().catch(e => console.error("Scanner cleanup failed", e));
-            };
-        }, 300);
+        <h3 className="text-base font-semibold text-[#F1F5F9]">QR Scanner</h3>
+        <p className="mt-1 text-sm text-[#94A3B8]">Point your camera at the QR code.</p>
+        <p className="mt-1 text-xs text-[#D97706]">Camera scanner fallback: paste decoded QR JSON below.</p>
 
-        return () => clearTimeout(timer);
-    }, [isOpen, onScanSuccess]);
+        <textarea
+          className="mt-4 h-40 w-full rounded-md border border-[#334155] bg-[#1E293B] p-3 text-sm text-[#F1F5F9] outline-none placeholder:text-[#94A3B8]"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={`{"type":"${expectedType}"}`}
+        />
 
-    if (!isOpen) return null;
-
-    return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-                onClick={onClose}
-            >
-                <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="bg-background border border-border shadow-2xl rounded-2xl w-full max-w-sm overflow-hidden"
-                >
-                    <div className="flex items-center justify-between p-4 border-b border-border">
-                        <h3 className="font-semibold text-sm flex items-center gap-2">
-                            <Camera className="w-4 h-4" /> Scan QR Code
-                        </h3>
-                        <button onClick={onClose} className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                    
-                    <div className="p-4 bg-black/5" id="qr-reader-wrapper">
-                        {/* The ID must match the Html5QrcodeScanner instantiation */}
-                        <div id="qr-reader-internal" className="w-full rounded-xl overflow-hidden bg-black"></div>
-                        {!scannerInit && (
-                            <div className="h-[250px] flex items-center justify-center text-xs text-muted-foreground">
-                                Initializing Camera...
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="p-4 bg-muted/30 border-t border-border text-center">
-                        <p className="text-xs text-muted-foreground">Align the QR code within the frame to scan.</p>
-                    </div>
-                </motion.div>
-            </motion.div>
-        </AnimatePresence>
-    );
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="outline" className="border-[#334155] text-[#F1F5F9]" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" className="bg-[#1A73E8] text-white hover:bg-[#1A73E8]/90" onClick={handleSubmit}>
+            Use Payload
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }

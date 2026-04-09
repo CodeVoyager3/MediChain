@@ -1,181 +1,325 @@
 /**
  * MediChain — Centralized API Client
+ * Dashboard-focused, with graceful fallback between V2 and legacy endpoints.
  */
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
 
-function getToken() { return localStorage.getItem('medichain_jwt'); }
-function authHeaders() { const token = getToken(); return token ? { Authorization: `Bearer ${token}` } : {}; }
+const TOKEN_KEY = 'medichain_jwt';
+const STORAGE_PREFIX = 'medichain_';
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function normalizeWallet(value = '') {
+  return String(value).trim().toLowerCase();
+}
+
+function parseJsonSafe(text) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeErrorMessage(payload, status) {
+  const msg = payload?.message || payload?.error || `Request failed (${status})`;
+  return String(msg).replace(/java\.lang\.[A-Za-z0-9_]+Exception:\s*/g, '');
+}
+
+function handleUnauthorized() {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(STORAGE_PREFIX)) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+    window.location.href = '/';
+  }
+}
+
+async function requestJson(method, path, { body = null, headers = {} } = {}) {
+  const token = getToken();
+  const finalHeaders = {
+    ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...headers,
+  };
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: finalHeaders,
+    body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined,
+  });
+
+  const text = await response.text();
+  const data = parseJsonSafe(text);
+
+  if (response.status === 401) {
+    handleUnauthorized();
+  }
+
+  if (!response.ok) {
+    const error = new Error(normalizeErrorMessage(data, response.status));
+    error.status = response.status;
+    throw error;
+  }
+
+  return data;
+}
+
+async function requestWithFallback(method, paths, options) {
+  let lastError = null;
+
+  for (const path of paths) {
+    try {
+      return await requestJson(method, path, options);
+    } catch (error) {
+      lastError = error;
+      if (error?.status === 401) break;
+    }
+  }
+
+  throw lastError || new Error('Request failed.');
+}
 
 function normalizeCid(value) {
-    if (!value) return null;
-    let v = String(value).trim();
-    if (v.startsWith('ipfs://')) v = v.replace('ipfs://', '');
-    if (v.includes('/')) v = v.split('/')[0];
-    return v && v.length > 10 ? v : null;
+  if (!value) return null;
+  let cid = String(value).trim();
+  cid = cid.replace(/^ipfs:\/\//i, '').replace(/^ipfs\//i, '').replace(/^\//, '');
+  if (cid.includes('ipfs/')) cid = cid.split('ipfs/').pop();
+  cid = cid.split('/')[0];
+  return cid && cid.length > 10 ? cid : null;
 }
 
-function normalizeWallet(value) { return (value || '').toString().trim().toLowerCase(); }
-
-function normalizeRecord(raw) {
-    return {
-        id: raw.id ?? null,
-        recordId: raw.recordId ?? raw.record_id ?? raw.id ?? null,
-        patientAddress: raw.patientAddress ?? raw.patient_address ?? '',
-        doctorAddress: raw.doctorAddress ?? raw.doctor_address ?? '',
-        ipfsCid: normalizeCid(raw.ipfs_cid ?? raw.ipfsCid ?? raw.cid ?? raw.record?.ipfsCid),
-        recordType: raw.recordType ?? raw.record_type ?? 'Medical Record',
-        superseded: raw.superseded ?? raw.isSuperseded ?? raw.is_superseded ?? false,
-        previousRecordId: raw.previousRecordId ?? raw.previous_record_id ?? null,
-        txHash: raw.txHash ?? raw.tx_hash ?? '',
-        timestamp: raw.timestamp ?? raw.createdAt ?? raw.created_at ?? null,
-    };
+function normalizeRecord(raw = {}) {
+  return {
+    id: raw.id ?? raw.recordId ?? raw.record_id ?? null,
+    recordId: raw.recordId ?? raw.record_id ?? raw.id ?? null,
+    episodeId: raw.episodeId ?? raw.episode_id ?? null,
+    filename: raw.filename ?? raw.fileName ?? raw.recordName ?? 'Medical Record',
+    patientAddress: raw.patientAddress ?? raw.patient_address ?? '',
+    doctorAddress: raw.doctorAddress ?? raw.doctor_address ?? '',
+    ipfsCid: normalizeCid(raw.ipfsCid ?? raw.ipfs_cid ?? raw.cid ?? raw.record?.ipfsCid ?? raw.record?.ipfs_cid),
+    recordType: raw.recordType ?? raw.record_type ?? 'Medical Record',
+    superseded: raw.superseded ?? raw.isSuperseded ?? raw.is_superseded ?? false,
+    previousRecordId: raw.previousRecordId ?? raw.previous_record_id ?? null,
+    txHash: raw.txHash ?? raw.tx_hash ?? '',
+    timestamp: raw.timestamp ?? raw.createdAt ?? raw.created_at ?? null,
+  };
 }
 
-function normalizeAccessGrant(raw) {
-    const recordId = raw.recordId ?? raw.record_id ?? null;
-    const doctorAddress = raw.doctorAddress ?? raw.viewerAddress ?? raw.viewer_address ?? '';
-    return {
-        id: raw.id ?? `${doctorAddress}-${recordId ?? 'unknown'}`,
-        doctorAddress,
-        viewerAddress: raw.viewerAddress ?? raw.viewer_address ?? doctorAddress,
-        patientAddress: raw.patientAddress ?? raw.patient_address ?? '',
-        recordId,
-        expiresAt: raw.expiresAt ?? raw.expires_at ?? null,
-        recordIds: Array.isArray(raw.recordIds) ? raw.recordIds : (recordId != null ? [recordId] : []),
-        durationLabel: raw.durationLabel ?? 'Active',
-    };
+function normalizeEpisode(raw = {}) {
+  const items = raw.records || raw.medicalRecords || raw.medical_records || [];
+  return {
+    id: raw.id ?? raw.episodeId ?? raw.episode_id ?? null,
+    title: raw.title ?? raw.episodeTitle ?? raw.name ?? 'Episode of Care',
+    createdAt: raw.createdAt ?? raw.created_at ?? null,
+    doctorAddress: raw.doctorAddress ?? raw.doctor_address ?? raw.creatorAddress ?? '',
+    records: Array.isArray(items) ? items.map(normalizeRecord) : [],
+  };
 }
 
-async function request(method, path, body = null) {
-    const headers = { 'Content-Type': 'application/json', ...authHeaders() };
-    const opts = { method, headers };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(`${API_BASE}${path}`, opts);
-    let data; try { data = await res.json(); } catch { data = {}; }
-
-    if (!res.ok) {
-        if (res.status === 401) {
-            localStorage.removeItem('medichain_jwt');
-            localStorage.removeItem('medichain_user');
-            window.dispatchEvent(new CustomEvent('medichain:unauthorized'));
-        }
-
-        let msg = data?.message || data?.error || `Request failed (${res.status})`;
-
-        // GLOBAL FIX: Strip out ugly Java stack traces from the UI
-        msg = msg.replace(/java\.lang\.[A-Za-z0-9_]+Exception:\s*/g, '');
-
-        // Make the access denied error sound more professional
-        if (msg === "ACCESS_DENIED") {
-            msg = "Access Denied: The patient has not granted you access, or the grant has expired.";
-        }
-
-        throw new Error(msg);
-    }
-    return data;
+function normalizeAccessGrant(raw = {}) {
+  const recordId = raw.recordId ?? raw.record_id ?? null;
+  const viewer = raw.doctorAddress ?? raw.viewerAddress ?? raw.viewer_address ?? '';
+  return {
+    id: raw.id ?? `${viewer}-${recordId ?? 'grant'}`,
+    doctorAddress: raw.doctorAddress ?? '',
+    viewerAddress: raw.viewerAddress ?? raw.viewer_address ?? viewer,
+    patientAddress: raw.patientAddress ?? raw.patient_address ?? '',
+    recordId,
+    recordIds: Array.isArray(raw.recordIds) ? raw.recordIds : (recordId != null ? [recordId] : []),
+    expiresAt: raw.expiresAt ?? raw.expires_at ?? null,
+    isActive: raw.isActive ?? raw.is_active ?? true,
+  };
 }
 
-export async function requestNonce(walletAddress) {
-    const res = await request('POST', '/api/v1/auth/nonce', { walletAddress });
-    return { ...res, messageToSign: res.messageToSign ?? res.data?.messageToSign };
-}
-export async function verifySignature(walletAddress, signature) {
-    const res = await request('POST', '/api/v1/auth/verify', { walletAddress, signature });
-    return { ...res, token: res.token ?? res.data?.token };
-}
-export async function registerUser(name, role) {
-    const res = await request('POST', '/api/v1/users/register', { name, role });
-    return { ...res, user: res.user ?? res.data?.user };
-}
-export async function getUserProfile(walletAddress) {
-    const res = await request('GET', `/api/v1/users/profile/${walletAddress}`);
-    return { ...res, user: res.user ?? res.data?.user };
+// --- Auth ---
+export function requestNonce(walletAddress) {
+  const wallet = normalizeWallet(walletAddress);
+  return requestWithFallback('POST', ['/api/v1/auth/nonce', '/api/auth/request-nonce'], { body: { walletAddress: wallet } });
 }
 
-// --- Patient Methods ---
+export function verifySignature(walletAddress, signature) {
+  const wallet = normalizeWallet(walletAddress);
+  return requestWithFallback('POST', ['/api/v1/auth/verify', '/api/auth/verify-signature'], {
+    body: { walletAddress: wallet, signature },
+  });
+}
+
+export function registerUser(name, role) {
+  return requestWithFallback('POST', ['/api/v1/users/register', '/api/auth/register'], { body: { name, role } });
+}
+
+export function getUserProfile(walletAddress) {
+  const wallet = normalizeWallet(walletAddress);
+  return requestWithFallback('GET', [`/api/v1/users/profile/${wallet}`, '/api/auth/profile']);
+}
+
+// --- Patient ---
 export async function getPatientVault() {
-    const res = await request('GET', '/api/v1/dashboard/patient/vault');
-    return { ...res, data: (res.data || []).map(normalizeRecord) };
+  const res = await requestWithFallback('GET', ['/api/v1/dashboard/patient/vault']);
+  const list = res.data || res.records || [];
+  const grants = res.access_grants || res.accessGrants || [];
+  return {
+    ...res,
+    data: Array.isArray(list) ? list.map(normalizeRecord) : [],
+    accessGrants: Array.isArray(grants) ? grants.map(normalizeAccessGrant) : [],
+  };
 }
-export function checkInToClinic(doctorAddress) { return request('POST', '/api/v1/dashboard/patient/check-in', { doctorAddress }); }
-export function getPatientEpisodes() { return request('GET', '/api/v1/episodes/patient'); }
+
+export async function getPatientEpisodes(patientAddress = '') {
+  const normalized = normalizeWallet(patientAddress);
+  const paths = ['/api/v1/dashboard/patient/episodes'];
+  if (normalized) paths.push(`/api/v1/episodes/patient/${normalized}`);
+  const res = await requestWithFallback('GET', paths);
+  const source = res.data || res.episodes || [];
+  return {
+    ...res,
+    data: Array.isArray(source) ? source.map(normalizeEpisode) : [],
+  };
+}
+
+export function checkInToClinic(doctorAddress) {
+  return requestWithFallback('POST', ['/api/v1/dashboard/patient/check-in'], {
+    body: { doctorAddress: normalizeWallet(doctorAddress) },
+  });
+}
+
+export function leaveClinic() {
+  return requestWithFallback('POST', ['/api/v1/dashboard/patient/leave-clinic', '/api/v1/dashboard/patient/leave-room']);
+}
+
+export function getPatientCheckInStatus() {
+  return requestWithFallback('GET', ['/api/v1/dashboard/patient/check-in-status']);
+}
 
 export async function getActiveGrants() {
-    const res = await request('GET', '/api/v1/blockchain/active-grants');
-    const rows = (res.data || []).map(normalizeAccessGrant);
-    const groupedMap = {};
-    for (const g of rows) {
-        const key = normalizeWallet(g.doctorAddress || g.viewerAddress);
-        if (!groupedMap[key]) {
-            groupedMap[key] = { id: key || g.id, doctorAddress: g.doctorAddress || g.viewerAddress || '', patientAddress: g.patientAddress || '', recordIds: [], durationLabel: 'Active' };
-        }
-        if (g.recordId != null && !groupedMap[key].recordIds.includes(g.recordId)) groupedMap[key].recordIds.push(g.recordId);
-        if (g.expiresAt) groupedMap[key].expiresAt = g.expiresAt;
-    }
-    return { ...res, data: Object.values(groupedMap) };
+  const res = await requestWithFallback('GET', ['/api/v1/dashboard/patient/active-grants', '/api/v1/blockchain/active-grants']);
+  const source = res.data || res.grants || [];
+  return {
+    ...res,
+    data: Array.isArray(source) ? source.map(normalizeAccessGrant) : [],
+  };
 }
 
-export function getPatientCheckInStatus() { return request('GET', '/api/v1/dashboard/patient/check-in-status'); }
-export function leaveClinic() { return request('POST', '/api/v1/dashboard/patient/leave-room'); }
+export function grantAccess(doctorAddress, recordIds = [], durationInSeconds = 86400) {
+  const payload = {
+    doctorAddress: normalizeWallet(doctorAddress),
+    recordIds,
+    durationInSeconds,
+  };
+  return requestWithFallback('POST', ['/api/v1/dashboard/patient/grant-access', '/api/v1/blockchain/grant-access'], { body: payload });
+}
 
-// --- Doctor Methods ---
-export function getWaitingRoom() { return request('GET', '/api/v1/dashboard/doctor/waiting-room'); }
-export function completeAppointment(checkInId) { return request('POST', '/api/v1/dashboard/doctor/complete-appointment', { checkInId }); }
-export function createEpisode(patientAddress, title, description = '') {
-    return request('POST', '/api/v1/episodes/create', { patientAddress, title, description });
+export function revokeAccess(doctorAddress, recordId) {
+  const payload = {
+    doctorAddress: normalizeWallet(doctorAddress),
+    recordId,
+  };
+  return requestWithFallback('POST', ['/api/v1/dashboard/patient/revoke-access', '/api/v1/blockchain/revoke-access'], { body: payload });
+}
+
+// --- Doctor ---
+export function getWaitingRoom() {
+  return requestWithFallback('GET', ['/api/v1/dashboard/doctor/waiting-room']);
+}
+
+export function completeAppointment(checkInId, patientAddress = '') {
+  return requestWithFallback('POST', ['/api/v1/dashboard/doctor/complete-appointment'], {
+    body: { checkInId, patientAddress: normalizeWallet(patientAddress) || undefined },
+  });
 }
 
 export async function getAccessibleRecords(patientAddress) {
-    const res = await request('GET', `/api/v1/dashboard/doctor/accessible-records/${normalizeWallet(patientAddress)}`);
-    const enriched = (res.data || []).map(g => ({
-        ...normalizeAccessGrant(g),
-        recordId: g.recordId ?? g.record_id,
-        ipfsCid: normalizeCid(g.ipfs_cid ?? g.ipfsCid ?? g.cid ?? g.record?.ipfs_cid),
-        recordType: g.recordType ?? g.record_type ?? g.record?.recordType ?? 'Medical Record',
-        isGranted: g.isGranted ?? false,
-        isAuthored: g.isAuthored ?? false,
-        superseded: g.superseded ?? false
-    }));
-    return { ...res, data: enriched };
+  const wallet = normalizeWallet(patientAddress);
+  const res = await requestWithFallback('GET', [`/api/v1/dashboard/doctor/accessible-records/${wallet}`]);
+  const source = res.data || res.records || [];
+  return {
+    ...res,
+    data: Array.isArray(source)
+      ? source.map((entry) => ({
+          ...normalizeRecord(entry),
+          ...normalizeAccessGrant(entry),
+          isGranted: entry.isGranted ?? entry.is_granted ?? false,
+          isAuthored: entry.isAuthored ?? entry.is_authored ?? false,
+        }))
+      : [],
+  };
 }
 
-// --- Blockchain Methods ---
 export function mintRecord(patientAddress, cid, recordType = 'Medical Record', previousRecordId = null, episodeId = null) {
-    return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid, recordType, previousRecordId, episodeId });
+  const payload = {
+    patientAddress: normalizeWallet(patientAddress),
+    cid,
+    recordType,
+    previousRecordId,
+    episodeId,
+  };
+  return requestWithFallback('POST', ['/api/v1/dashboard/doctor/mint-record', '/api/v1/blockchain/mint'], { body: payload });
 }
 
-export function amendRecord(patientAddress, cid, previousRecordId, recordType = 'Medical Record') {
-    return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid, previousRecordId, recordType });
+export function amendRecord(patientAddress, cid, previousRecordId, recordType = 'Medical Record', episodeId = null) {
+  const payload = {
+    patientAddress: normalizeWallet(patientAddress),
+    cid,
+    previousRecordId,
+    recordType,
+    episodeId,
+  };
+  return requestWithFallback('POST', ['/api/v1/dashboard/doctor/amend-record', '/api/v1/blockchain/mint'], { body: payload });
 }
 
-export function grantAccess(doctorAddress, recordIds, durationInSeconds) {
-    return request('POST', '/api/v1/blockchain/grant-access', { doctorAddress, recordIds, durationInSeconds });
-}
-export function revokeAccess(doctorAddress, recordId) {
-    return request('POST', '/api/v1/blockchain/revoke-access', { doctorAddress, recordId });
+export function createEpisode(patientAddress, title) {
+  return requestWithFallback('POST', ['/api/v1/episodes/create'], {
+    body: { patientAddress: normalizeWallet(patientAddress), title },
+  });
 }
 
-// --- Insurer & Access Verification Methods ---
-export function checkAccess(patientAddress, doctorAddress, recordId) {
-    return request('POST', '/api/v1/blockchain/check-access', {
-        patientAddress,
-        doctorAddress,
-        recordId,
+// --- Insurer ---
+export async function verifyRecord(patientAddress, recordId, insurerAddress = '') {
+  const patient = normalizeWallet(patientAddress);
+  const insurer = normalizeWallet(insurerAddress);
+
+  try {
+    return await requestWithFallback('GET', [
+      `/api/v1/dashboard/insurer/verify-record?patientAddress=${encodeURIComponent(patient)}&recordId=${encodeURIComponent(recordId)}`,
+    ]);
+  } catch {
+    return requestWithFallback('POST', ['/api/v1/blockchain/insurer/view-record'], {
+      body: { insurerAddress: insurer, patientAddress: patient, recordId },
     });
+  }
+}
+
+export function analyzeEpisode(episodeId) {
+  return requestWithFallback('POST', ['/api/insurer/analyze-episode', '/api/v1/dashboard/insurer/analyze-episode'], {
+    body: { episodeId },
+  });
+}
+
+// --- Backward-compatible exports used in older parts of the app ---
+export function checkAccess(patientAddress, doctorAddress, recordId) {
+  return requestWithFallback('POST', ['/api/v1/blockchain/check-access'], {
+    body: {
+      patientAddress: normalizeWallet(patientAddress),
+      doctorAddress: normalizeWallet(doctorAddress),
+      recordId,
+    },
+  });
 }
 
 export function viewRecordAsInsurer(insurerAddress, patientAddress, recordId) {
-    return request('POST', '/api/v1/blockchain/insurer/view-record', {
-        insurerAddress,
-        patientAddress,
-        recordId,
-    });
-}
-
-export function verifyEpisodeAsInsurer(insurerAddress, patientAddress, episodeId) {
-    return request('POST', '/api/v1/blockchain/insurer/verify-episode', {
-        insurerAddress,
-        patientAddress,
-        episodeId,
-    });
+  return requestWithFallback('POST', ['/api/v1/blockchain/insurer/view-record'], {
+    body: {
+      insurerAddress: normalizeWallet(insurerAddress),
+      patientAddress: normalizeWallet(patientAddress),
+      recordId,
+    },
+  });
 }

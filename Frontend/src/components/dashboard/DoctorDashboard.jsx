@@ -1,516 +1,612 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useActiveAccount, useDisconnect, useActiveWallet } from 'thirdweb/react';
-import { createThirdwebClient } from "thirdweb";
-import { upload } from "thirdweb/storage";
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useActiveAccount, useActiveWallet, useDisconnect } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
+import { upload } from 'thirdweb/storage';
+import {
+  Activity,
+  Clock3,
+  FileUp,
+  FolderSearch2,
+  LayoutDashboard,
+  PlusCircle,
+  QrCode,
+  ScanLine,
+  Settings,
+  Stethoscope,
+  UserRoundSearch,
+  Users,
+  Eye,
+  FilePenLine,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/context/AuthContext';
+import {
+  amendRecord,
+  completeAppointment,
+  createEpisode,
+  getAccessibleRecords,
+  getPatientEpisodes,
+  getWaitingRoom,
+  mintRecord,
+} from '@/services/api';
+import AppLayout from '@/components/common/AppLayout';
+import EmptyState from '@/components/common/EmptyState';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import QRDisplay from '@/components/common/QRDisplay';
+import QRScanner from '@/components/common/QRScanner';
+import StatusBadge from '@/components/common/StatusBadge';
+import WalletAddress from '@/components/common/WalletAddress';
+import { useToast } from '@/components/common/ToastNotification';
 
-const client = createThirdwebClient({ clientId: import.meta.env.VITE_CLIENT_ID });
+const client = createThirdwebClient({ clientId: import.meta.env.VITE_CLIENT_ID || '' });
 
-import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye, Edit, QrCode } from 'lucide-react';
-import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { MagicCard } from '../magicui/magic-card';
-import { ShimmerButton } from '../magicui/shimmer-button';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AmbientParticles } from '../effects/AmbientParticles';
-import { GlassCard } from '../effects/GlassCard';
-import { useAuth } from '../../context/AuthContext';
-import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, amendRecord, createEpisode } from '../../services/api';
-import { QRDisplay } from '../common/QRDisplay';
-import { QRScanner } from '../common/QRScanner';
+const NAV_ITEMS = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'waiting-room', label: 'Waiting Room', icon: Clock3 },
+  { id: 'patient-vault', label: 'Patient Vault', icon: FolderSearch2 },
+  { id: 'my-episodes', label: 'My Episodes', icon: Activity },
+  { id: 'settings', label: 'Settings', icon: Settings },
+];
 
-const NAV = {
-    main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'waiting', label: 'Waiting Room', icon: Clock }],
-    features: [{ id: 'records', label: 'Mint Records', icon: Upload }],
-    general: [{ id: 'settings', label: 'Settings', icon: Settings }, { id: 'logout', label: 'Log out', icon: LogOut }],
-};
+const RECORD_TYPES = ['Diagnosis', 'Lab Report', 'Surgery Report', 'Prescription', 'Final Bill', 'Other'];
 
-function Sidebar({ activeNav, setActiveNav, setMobileOpen, onLogout, waitingCount }) {
-    return (
-        <aside className="flex flex-col w-[240px] shrink-0 h-full bg-background border-r border-border">
-            <div className="flex items-center justify-between px-5 py-[18px] border-b border-border">
-                <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="MediChain" className="h-8 w-auto object-contain" />
-                    <span className="text-lg font-bold tracking-tight" style={{ fontFamily: 'var(--font-logo)', color: 'hsl(var(--foreground))' }}>MediChain</span>
-                </div>
-                <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 rounded-lg hover:bg-muted"><ChevronsLeft className="w-4 h-4" /></button>
-            </div>
-            <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
-                <div>
-                    <ul className="space-y-0.5">
-                        {NAV.main.map(item => (
-                            <li key={item.id}><button onClick={() => { setActiveNav(item.id); setMobileOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] ${activeNav === item.id ? 'bg-secondary/10 text-secondary' : 'text-muted-foreground hover:bg-muted'}`}><item.icon className="w-4 h-4 shrink-0" /> <span className="flex-1 text-left">{item.label}</span>{item.id === 'waiting' && waitingCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-secondary/20 text-secondary">{waitingCount}</span>}</button></li>
-                        ))}
-                    </ul>
-                </div>
-                <div>
-                    <ul className="space-y-0.5">
-                        {NAV.general.map(item => (
-                            <li key={item.id}><button onClick={item.id === 'logout' ? onLogout : undefined} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${item.id === 'logout' ? 'text-red-400 hover:bg-red-950/30' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}><item.icon className="w-4 h-4 shrink-0" />{item.label}</button></li>
-                        ))}
-                    </ul>
-                </div>
-            </nav>
-        </aside>
-    );
+function formatDate(value) {
+  if (!value) return 'â€”';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'â€”';
+  return date.toLocaleString();
 }
 
-function IconBadge({ icon: Icon }) {
-    return <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-secondary/10"><Icon className="w-3.5 h-3.5 text-secondary" /></div>;
+function waitTimeLabel(value) {
+  if (!value) return 'Waiting now';
+  const diff = Date.now() - new Date(value).getTime();
+  if (Number.isNaN(diff) || diff < 0) return 'Waiting now';
+  const mins = Math.max(1, Math.floor(diff / (1000 * 60)));
+  return `Waiting ${mins} min`;
+}
+
+function openIpfs(cid) {
+  if (!cid) return;
+  window.open(`https://gateway.pinata.cloud/ipfs/${cid}`, '_blank', 'noopener,noreferrer');
 }
 
 export default function DoctorDashboard() {
-    const account = useActiveAccount();
-    const { user, logout } = useAuth();
-    const { disconnect } = useDisconnect();
-    const wallet = useActiveWallet();
+  const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
+  const { user, logout } = useAuth();
+  const { toast } = useToast();
 
-    const [activeNav, setActiveNav] = useState('overview');
-    const [mobileOpen, setMobileOpen] = useState(false);
-    const [showClinicQr, setShowClinicQr] = useState(false);
-    const [showScanner, setShowScanner] = useState(false);
+  const [activeNav, setActiveNav] = useState('waiting-room');
+  const [loading, setLoading] = useState(true);
+  const [waitingRoom, setWaitingRoom] = useState([]);
+  const [selectedPatient, setSelectedPatient] = useState('');
+  const [patientQuery, setPatientQuery] = useState('');
+  const [accessibleRecords, setAccessibleRecords] = useState([]);
+  const [doctorEpisodes, setDoctorEpisodes] = useState([]);
+  const [loadingVault, setLoadingVault] = useState(false);
+  const [recordType, setRecordType] = useState(RECORD_TYPES[0]);
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState('');
+  const [mintFile, setMintFile] = useState(null);
+  const [mintPatient, setMintPatient] = useState('');
+  const [minting, setMinting] = useState(false);
+  const [amendFile, setAmendFile] = useState(null);
+  const [amendingId, setAmendingId] = useState(null);
+  const [episodeTitle, setEpisodeTitle] = useState('');
+  const [creatingEpisode, setCreatingEpisode] = useState(false);
+  const [clinicQrOpen, setClinicQrOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
-    const [waitingRoom, setWaitingRoom] = useState([]);
-    const [grantedRecords, setGrantedRecords] = useState([]);
-    const [mintedRecords, setMintedRecords] = useState([]);
+  const walletAddress = account?.address || user?.walletAddress || '';
 
-    const [loadingWaiting, setLoadingWaiting] = useState(true);
-    const [loadingRecords, setLoadingRecords] = useState(false);
-    const [errorMsg, setErrorMsg] = useState('');
+  const refreshWaitingRoom = useCallback(async () => {
+    try {
+      const res = await getWaitingRoom();
+      setWaitingRoom(res.data || []);
+    } catch {
+      setWaitingRoom([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const [selectedPatient, setSelectedPatient] = useState(null);
-    const [manualSearchQuery, setManualSearchQuery] = useState('');
-    const [qrPayloadInput, setQrPayloadInput] = useState('');
+  const loadPatientVault = useCallback(async (patientAddress) => {
+    const normalized = String(patientAddress || '').trim().toLowerCase();
+    if (!normalized) return;
 
-    const [fileToMint, setFileToMint] = useState(null);
-    const [patientAddressToMint, setPatientAddressToMint] = useState('');
-    const [isUploading, setIsUploading] = useState(false);
+    setLoadingVault(true);
+    setSelectedPatient(normalized);
+    setMintPatient(normalized);
+    try {
+      const [recordsRes, episodesRes] = await Promise.allSettled([
+        getAccessibleRecords(normalized),
+        getPatientEpisodes(normalized),
+      ]);
 
-    const [amendingRecordId, setAmendingRecordId] = useState(null);
-    const [amendFile, setAmendFile] = useState(null);
-    const [isAmending, setIsAmending] = useState(false);
+      if (recordsRes.status === 'fulfilled') {
+        setAccessibleRecords(recordsRes.value.data || []);
+      } else {
+        setAccessibleRecords([]);
+      }
 
-    // Episode state
-    const [episodes, setEpisodes] = useState([]);
-    const [showEpisodeModal, setShowEpisodeModal] = useState(false);
-    const [episodeTitle, setEpisodeTitle] = useState('');
-    const [episodeDescription, setEpisodeDescription] = useState('');
-    const [isCreatingEpisode, setIsCreatingEpisode] = useState(false);
-    const [selectedEpisodeId, setSelectedEpisodeId] = useState('');
+      if (episodesRes.status === 'fulfilled') {
+        setDoctorEpisodes(episodesRes.value.data || []);
+      } else {
+        setDoctorEpisodes([]);
+      }
+    } catch (error) {
+      toast(error.message || 'Could not open patient vault.', 'error');
+    } finally {
+      setLoadingVault(false);
+    }
+  }, [toast]);
 
-    const displayName = user?.name || 'Doctor';
+  useEffect(() => {
+    refreshWaitingRoom();
+  }, [refreshWaitingRoom]);
 
-    const normalizeCid = (value) => {
-        if (!value) return null;
-        let v = String(value).trim();
-        if (v.startsWith("ipfs://")) v = v.replace("ipfs://", "");
-        if (v.includes("/")) v = v.split("/")[0];
-        return v.length > 10 ? v : null;
-    };
+  useEffect(() => {
+    const interval = window.setInterval(refreshWaitingRoom, 15000);
+    return () => window.clearInterval(interval);
+  }, [refreshWaitingRoom]);
 
-    const getCid = (r) => normalizeCid(
-        r.ipfsCid || r.ipfs_cid || r.cid || r.record?.ipfsCid || r.record?.ipfs_cid
-    );
+  const handleLogout = () => {
+    if (wallet) disconnect(wallet);
+    logout();
+    window.setTimeout(() => {
+      window.location.href = '/';
+    }, 200);
+  };
 
-    const getRecordId = (r) => r.recordId ?? r.record_id ?? r.id;
+  const grantedRecords = useMemo(
+    () => accessibleRecords.filter((item) => item.isGranted || !item.isAuthored),
+    [accessibleRecords]
+  );
+  const authoredRecords = useMemo(
+    () => accessibleRecords.filter((item) => item.isAuthored),
+    [accessibleRecords]
+  );
 
-    const handleViewDocument = (e, cid) => {
-        e.stopPropagation();
-        if (!cid) { alert("Record metadata endpoint does not provide CID for this doctor view."); return; }
-        window.open(`https://gateway.pinata.cloud/ipfs/${cid}`, '_blank', 'noopener,noreferrer');
-    };
+  const handleCompleteAppointment = async (entry) => {
+    try {
+      await completeAppointment(entry.id, entry.patientAddress);
+      toast('Appointment marked as complete.', 'success');
+      await refreshWaitingRoom();
+      if (selectedPatient && selectedPatient === String(entry.patientAddress || '').toLowerCase()) {
+        setSelectedPatient('');
+        setAccessibleRecords([]);
+      }
+    } catch (error) {
+      toast(error.message || 'Could not complete appointment.', 'error');
+    }
+  };
 
-    const fetchWaitingRoom = useCallback(async () => {
-        setLoadingWaiting(true);
-        try { const res = await getWaitingRoom(); setWaitingRoom(res.data || []); }
-        catch (err) { setWaitingRoom([]); }
-        finally { setLoadingWaiting(false); }
-    }, []);
+  const handleMint = async () => {
+    const target = (selectedPatient || mintPatient || '').toLowerCase();
+    if (!target || !mintFile) {
+      toast('Select patient and PDF before minting.', 'warning');
+      return;
+    }
 
-    useEffect(() => { fetchWaitingRoom(); }, [fetchWaitingRoom]);
+    setMinting(true);
+    try {
+      const uri = await upload({ client, files: [mintFile] });
+      await mintRecord(target, uri, recordType, null, selectedEpisodeId || null);
+      setMintFile(null);
+      setSelectedEpisodeId('');
+      toast('Record minted successfully.', 'success');
+      await loadPatientVault(target);
+    } catch (error) {
+      toast(error.message || 'Minting failed.', 'error');
+    } finally {
+      setMinting(false);
+    }
+  };
 
-    const handleLogout = () => {
-        // 1. Sever the Web3 connection
-        if (wallet) {
-            disconnect(wallet);
-        }
-        // 2. Clear the local JWT
-        logout();
+  const handleAmend = async (record) => {
+    if (!amendFile) {
+      toast('Select a replacement PDF first.', 'warning');
+      return;
+    }
 
-        // 3. IMPORTANT: Wait 250ms for Thirdweb to clear LocalStorage before navigating away!
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 250);
-    };
+    setAmendingId(record.recordId || record.id);
+    try {
+      const uri = await upload({ client, files: [amendFile] });
+      await amendRecord(
+        record.patientAddress || selectedPatient,
+        uri,
+        record.recordId || record.id,
+        record.recordType || recordType,
+        selectedEpisodeId || null
+      );
+      setAmendFile(null);
+      toast('Record amended successfully.', 'success');
+      await loadPatientVault(record.patientAddress || selectedPatient);
+    } catch (error) {
+      toast(error.message || 'Amendment failed.', 'error');
+    } finally {
+      setAmendingId(null);
+    }
+  };
 
-    const handleCompleteAppointment = async (checkInId) => {
-        try {
-            await completeAppointment(checkInId);
-            if (selectedPatient === waitingRoom.find(p => p.id === checkInId)?.patientAddress) {
-                setSelectedPatient(null); setGrantedRecords([]);
-            }
-            fetchWaitingRoom();
-        } catch (err) { setErrorMsg(err.message); }
-    };
+  const handleCreateEpisode = async () => {
+    if (!selectedPatient || !episodeTitle.trim()) {
+      toast('Select patient and enter episode title.', 'warning');
+      return;
+    }
 
-    const handleSelectPatient = async (patientAddress) => {
-        if (!patientAddress.trim()) return;
-        const normalizedPatient = patientAddress.trim().toLowerCase();
-        setSelectedPatient(normalizedPatient);
-        setManualSearchQuery('');
-        setLoadingRecords(true);
-        setGrantedRecords([]);
-        setErrorMsg('');
+    setCreatingEpisode(true);
+    try {
+      await createEpisode(selectedPatient, episodeTitle.trim());
+      setEpisodeTitle('');
+      toast('Episode created successfully.', 'success');
+      await loadPatientVault(selectedPatient);
+    } catch (error) {
+      toast(error.message || 'Could not create episode.', 'error');
+    } finally {
+      setCreatingEpisode(false);
+    }
+  };
 
-        try {
-            const grantsRes = await getAccessibleRecords(normalizedPatient);
-            setGrantedRecords(grantsRes.data || []);
-        } catch (err) {
-            setGrantedRecords([]);
-            setErrorMsg(err.message || 'Failed to fetch accessible records');
-        } finally {
-            setLoadingRecords(false);
-        }
-    };
+  const sidebarActions = (
+    <Button className="w-full bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => setClinicQrOpen(true)}>
+      <QrCode className="mr-2 h-4 w-4" />
+      My Clinic QR
+    </Button>
+  );
 
-    const handleUploadAndMint = async () => {
-        const targetAddress = selectedPatient || patientAddressToMint;
-        if (!fileToMint || !targetAddress) { setErrorMsg("Please select a file and a patient."); return; }
+  const renderOverview = () => (
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="rounded-xl border border-neutral-200 bg-white p-4">
+        <p className="text-sm text-neutral-500">Waiting Room</p>
+        <p className="mt-2 text-3xl font-bold text-neutral-900">{waitingRoom.length}</p>
+      </div>
+      <div className="rounded-xl border border-neutral-200 bg-white p-4">
+        <p className="text-sm text-neutral-500">Selected Patient</p>
+        <p className="mt-2 text-sm font-semibold text-neutral-900">{selectedPatient ? <WalletAddress address={selectedPatient} className="text-neutral-900" /> : 'None'}</p>
+      </div>
+      <div className="rounded-xl border border-neutral-200 bg-white p-4">
+        <p className="text-sm text-neutral-500">Accessible Records</p>
+        <p className="mt-2 text-3xl font-bold text-neutral-900">{accessibleRecords.length}</p>
+      </div>
+    </div>
+  );
 
-        setIsUploading(true); setErrorMsg('');
-        try {
-            console.log("Uploading to IPFS via Thirdweb...");
-            const uri = await upload({ client, files: [fileToMint] });
-            const epId = selectedEpisodeId ? parseInt(selectedEpisodeId, 10) : null;
-            if (selectedEpisodeId && isNaN(epId)) { setErrorMsg("Invalid episode selection."); return; }
-            await mintRecord(targetAddress, uri, fileToMint.name, null, epId);
+  const renderWaitingRoom = () => (
+    <div className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-neutral-900">
+          Waiting Room
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+            Live
+          </span>
+        </h2>
+      </div>
 
-            setFileToMint(null);
-            setPatientAddressToMint('');
-            setSelectedEpisodeId('');
+      {waitingRoom.length === 0 ? (
+        <EmptyState
+          icon={Clock3}
+          title="No patients waiting"
+          description="Share your Clinic QR to let patients check in."
+        />
+      ) : (
+        <div className="space-y-2">
+          {waitingRoom.map((entry) => (
+            <div key={entry.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-neutral-900">
+                    <WalletAddress address={entry.patientAddress} className="text-neutral-900" />
+                  </p>
+                  <p className="text-xs text-neutral-500">{waitTimeLabel(entry.checkedInAt || entry.createdAt)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => loadPatientVault(entry.patientAddress)}>
+                    Open Vault
+                  </Button>
+                  <Button className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => handleCompleteAppointment(entry)}>
+                    Complete
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
-            if (targetAddress === selectedPatient) {
-                await handleSelectPatient(targetAddress);
-            } else {
-                alert("Record securely minted and indexed!");
-            }
-        } catch (err) {
-            setErrorMsg(err.message);
-        } finally {
-            setIsUploading(false);
-        }
-    };
+  const renderVaultSearch = () => (
+    <div className="flex flex-wrap gap-2">
+      <input
+        className="w-full flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900 outline-none"
+        placeholder="0x... patient wallet address"
+        value={patientQuery}
+        onChange={(event) => setPatientQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            loadPatientVault(patientQuery);
+          }
+        }}
+      />
+      <Button type="button" variant="outline" className="border-neutral-200 text-neutral-900" onClick={() => setScannerOpen(true)}>
+        <ScanLine className="h-4 w-4" />
+      </Button>
+      <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => loadPatientVault(patientQuery)}>
+        Find
+      </Button>
+    </div>
+  );
 
-    const handleAmendRecord = async (record) => {
-        if (!amendFile) return;
-        setIsAmending(true); setErrorMsg('');
+  const renderMintEngine = () => (
+    <section className="rounded-xl border border-neutral-200 bg-white p-4">
+      <h3 className="mb-3 text-base font-semibold text-neutral-900">Secure Minting Engine</h3>
+      <div className="space-y-3">
+        <p className="text-sm text-neutral-500">
+          Minting for:{' '}
+          {selectedPatient ? (
+            <WalletAddress address={selectedPatient} className="text-neutral-900" />
+          ) : (
+            <span className="text-neutral-900">No patient selected</span>
+          )}
+        </p>
 
-        try {
-            const uri = await upload({ client, files: [amendFile] });
-            await amendRecord(record.patientAddress, uri, record.recordId || record.id, record.recordType);
+        {!selectedPatient ? (
+          <input
+            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900 outline-none"
+            placeholder="0x... patient wallet"
+            value={mintPatient}
+            onChange={(event) => setMintPatient(event.target.value)}
+          />
+        ) : null}
 
-            setAmendingRecordId(null);
-            setAmendFile(null);
+        <input
+          type="file"
+          accept=".pdf"
+          onChange={(event) => setMintFile(event.target.files?.[0] || null)}
+          className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
+        />
 
-            if (selectedPatient === (record.patientAddress || '').toLowerCase()) {
-                await handleSelectPatient(selectedPatient);
-            }
-        } catch (err) {
-            setErrorMsg(err.message);
-        } finally {
-            setIsAmending(false);
-        }
-    };
+        <select
+          value={recordType}
+          onChange={(event) => setRecordType(event.target.value)}
+          className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
+        >
+          {RECORD_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
 
-    const handleCreateEpisode = async () => {
-        const targetAddress = selectedPatient || patientAddressToMint;
-        if (!episodeTitle.trim() || !targetAddress) { setErrorMsg("Episode title and patient address are required."); return; }
-        setIsCreatingEpisode(true); setErrorMsg('');
-        try {
-            const res = await createEpisode(targetAddress, episodeTitle.trim(), episodeDescription.trim());
-            const ep = res.data;
-            setEpisodes(prev => [ep, ...prev]);
-            setSelectedEpisodeId(String(ep.episodeId));
-            setEpisodeTitle('');
-            setEpisodeDescription('');
-            setShowEpisodeModal(false);
-        } catch (err) {
-            setErrorMsg(err.message);
-        } finally {
-            setIsCreatingEpisode(false);
-        }
-    };
+        {doctorEpisodes.length > 0 ? (
+          <select
+            value={selectedEpisodeId}
+            onChange={(event) => setSelectedEpisodeId(event.target.value)}
+            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
+          >
+            <option value="">No Episode</option>
+            {doctorEpisodes.map((episode) => (
+              <option key={episode.id} value={episode.id}>
+                {episode.title}
+              </option>
+            ))}
+          </select>
+        ) : null}
 
-    const handleScanQrPayload = async () => {
-        if (!qrPayloadInput.trim()) return;
-        try {
-            const parsed = JSON.parse(qrPayloadInput);
-            if (parsed?.type !== 'PATIENT_ID') {
-                throw new Error('Unsupported QR payload type.');
-            }
-            const patientFromQr = parsed?.patientAddress || parsed?.patientWallet || '';
-            if (!patientFromQr) throw new Error('QR payload missing patientAddress.');
-            await handleSelectPatient(patientFromQr);
-            setQrPayloadInput('');
-        } catch (err) {
-            setErrorMsg('Invalid QR payload. Paste a valid MediChain QR payload JSON.');
-        }
-    };
+        <Button className="w-full bg-indigo-600 text-white hover:bg-indigo-500" disabled={minting} onClick={handleMint}>
+          <FileUp className="mr-2 h-4 w-4" />
+          {minting ? 'Minting to blockchain...' : 'Mint Record'}
+        </Button>
+      </div>
+    </section>
+  );
 
-    const handlePatientQrScan = async (payload) => {
-        setShowScanner(false);
-        try {
-            if (payload?.type !== 'PATIENT_ID') {
-                throw new Error('Unsupported QR payload type.');
-            }
-            const patientFromQr = payload?.patientAddress || '';
-            if (!patientFromQr) throw new Error('QR payload missing patientAddress.');
-            await handleSelectPatient(patientFromQr);
-        } catch (err) {
-            setErrorMsg('Invalid QR payload.');
-        }
-    };
+  const renderPatientVault = () => (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-neutral-200 bg-white p-4">
+        <h2 className="mb-3 text-base font-semibold text-neutral-900">Patient Vault</h2>
+        {renderVaultSearch()}
 
-    const validRecords = grantedRecords.filter((r) => {
-        const recId = getRecordId(r);
-        if (recId === undefined || recId === null) return false;
-        const expiresAt = r.expiresAt || r.expires_at;
-        if (expiresAt) {
-            const expTs = new Date(expiresAt).getTime();
-            if (!Number.isNaN(expTs) && expTs < Date.now()) return false;
-        }
-        return true;
-    });
-
-    const grantedList = validRecords.filter(r => r.isGranted);
-    const authoredList = validRecords.filter(r => r.isAuthored && !r.isGranted);
-
-    return (
-        <div className="flex h-screen overflow-hidden font-body bg-background">
-            <div className="hidden lg:flex"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} waitingCount={waitingRoom.length} /></div>
-            {mobileOpen && <div className="fixed inset-y-0 left-0 z-50 lg:hidden"><Sidebar activeNav={activeNav} setActiveNav={setActiveNav} setMobileOpen={setMobileOpen} onLogout={handleLogout} waitingCount={waitingRoom.length} /></div>}
-
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                <AmbientParticles />
-                <header className="flex items-center justify-between px-4 lg:px-6 py-3.5 bg-background border-b border-border shrink-0 relative z-20">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-xl hover:bg-muted"><Menu className="w-5 h-5" /></button>
-                        <div><h1 className="text-[15px] font-semibold text-foreground">Welcome, Dr. {displayName} 👋</h1></div>
-                        <button onClick={() => setShowClinicQr(true)} className="ml-2 text-[10px] bg-secondary/10 text-secondary px-2 py-1 flex items-center gap-1 rounded hover:bg-secondary/20 transition"><QrCode className="w-3 h-3"/> My Clinic QR</button>
-                    </div>
-                    <div className="flex items-center gap-2"><AnimatedThemeToggler /></div>
-                </header>
-
-                <main className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 lg:py-5 space-y-4 relative z-10">
-                    {errorMsg && <div className="bg-red-950/30 text-red-300 text-xs p-3 rounded-xl flex justify-between"><span>{errorMsg}</span><button onClick={() => setErrorMsg('')} className="underline">Dismiss</button></div>}
-
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        <div className="w-full lg:w-[35%] shrink-0">
-                            <MagicCard className="h-full bg-transparent" gradientColor='hsl(var(--muted))'>
-                                <GlassCard>
-                                    <div className="p-5 flex flex-col h-full">
-                                        <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><IconBadge icon={Clock} /><span className="text-[13px] font-semibold">Waiting Room</span></div></div>
-                                        <div className="space-y-3 flex-1 overflow-y-auto">
-                                            {loadingWaiting ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div> : waitingRoom.length === 0 ? <p className="text-[11px] text-muted-foreground text-center py-8">No patients waiting.</p> : (
-                                                waitingRoom.map(p => (
-                                                    <motion.div key={p.id} onClick={() => handleSelectPatient(p.patientAddress)} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${selectedPatient === (p.patientAddress || '').toLowerCase() ? 'border-secondary/50 bg-secondary/10' : 'hover:bg-muted/50'}`}>
-                                                        <div className="flex-1 min-w-0"><p className="text-[12px] font-mono truncate">{p.patientAddress.slice(0, 8)}…</p></div>
-                                                        <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-secondary" onClick={(e) => { e.stopPropagation(); handleCompleteAppointment(p.id); }}>Done</Button>
-                                                    </motion.div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                </GlassCard>
-                            </MagicCard>
+        {!selectedPatient ? (
+          <div className="mt-4">
+            <EmptyState
+              icon={UserRoundSearch}
+              title="No patient selected"
+              description="Search by wallet or scan a patient QR to open their vault."
+            />
+          </div>
+        ) : loadingVault ? (
+          <LoadingSpinner message="Loading patient vault..." />
+        ) : (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-sm font-semibold text-emerald-700">Granted Access</p>
+              {grantedRecords.length === 0 ? (
+                <p className="mt-1 text-sm text-emerald-700">No active access grant for this patient.</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {grantedRecords.map((record) => (
+                    <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-900">{record.filename || record.recordType}</p>
+                          <p className="text-xs text-neutral-500">{record.recordType} Â· {formatDate(record.timestamp)}</p>
                         </div>
-
-                        <div className="flex-1 flex flex-col min-w-0">
-                            <MagicCard className="h-full bg-transparent" gradientColor='hsl(var(--muted))'>
-                                <GlassCard>
-                                    <div className="p-5 flex flex-col h-full">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-2"><IconBadge icon={ShieldCheck} /><span className="text-[13px] font-semibold">Patient Vault</span></div>
-                                            <div className="flex items-center gap-2">
-                                                {selectedPatient && (
-                                                    <button onClick={() => setShowEpisodeModal(true)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded flex items-center gap-1 hover:bg-secondary/30 transition"><Plus className="w-3 h-3" />New Episode</button>
-                                                )}
-                                                <button onClick={() => setShowScanner(true)} className="text-[10px] bg-secondary/10 text-secondary px-2 py-1 flex items-center gap-1 rounded hover:bg-secondary/20 transition" title="Scan Patient QR">Scanner</button>
-                                                <input type="text" placeholder="0x..." value={manualSearchQuery} onChange={(e) => setManualSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSelectPatient(manualSearchQuery)} className="border rounded-lg px-2 py-1 text-[11px] font-mono bg-background w-[140px]" />
-                                                <button onClick={() => handleSelectPatient(manualSearchQuery)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded">Find</button>
-                                                {selectedPatient && <button onClick={() => setSelectedPatient(null)} className="text-[10px] bg-red-950/30 text-red-400 px-2 py-1 rounded hover:bg-red-900/50 transition">Close Patient</button>}
-                                            </div>
-                                        </div>
-                                        <div className="mb-4 flex items-center gap-2">
-                                            <div className="relative flex-1">
-                                                <QrCode className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-                                                <input type="text" placeholder='Paste QR payload JSON {"patientAddress":"0x..."}' value={qrPayloadInput} onChange={(e) => setQrPayloadInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleScanQrPayload()} className="w-full border rounded-lg pl-8 pr-2 py-2 text-[10px] font-mono bg-background" />
-                                            </div>
-                                            <button onClick={handleScanQrPayload} className="text-[10px] bg-secondary/20 text-secondary px-2.5 py-2 rounded">Scan</button>
-                                        </div>
-                                        <div className="flex-1 overflow-y-auto pr-2 space-y-6">
-                                            {!selectedPatient ? (
-                                                <p className="text-center text-[11px] text-muted-foreground py-12">Select or search a patient to view files.</p>
-                                            ) : loadingRecords ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div> : (
-                                                <>
-                                                    <div>
-                                                        <h4 className="text-xs font-bold text-emerald-500 mb-3 flex items-center gap-2"><Eye className="w-3.5 h-3.5"/> Granted Access</h4>
-                                                        {grantedList.length === 0 ? <p className="text-[11px] text-muted-foreground">No shared records.</p> : (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                {grantedList.map((grant) => {
-                                                                    const recId = getRecordId(grant);
-                                                                    const cid = getCid(grant);
-                                                                    const canOpen = !!cid;
-                                                                    const isAmendTarget = amendingRecordId === recId;
-                                                                    return (
-                                                                        <div key={recId} className={`p-4 rounded-xl border bg-background/60 ${grant.superseded ? 'opacity-50' : ''}`}>
-                                                                            <h3 className={`text-[12px] font-bold font-mono mb-1 ${grant.superseded ? 'line-through' : ''}`}>#{recId}</h3>
-                                                                            <p className="text-[10px] text-muted-foreground truncate mb-3">{grant.recordType}</p>
-
-                                                                            <div className="flex gap-2">
-                                                                                <button onClick={(e) => canOpen && handleViewDocument(e, cid)} disabled={!canOpen} className="flex-1 py-2 rounded-lg text-[11px] font-semibold bg-secondary/10 text-secondary hover:bg-secondary hover:text-background disabled:opacity-50 flex items-center justify-center gap-1.5">
-                                                                                    <Eye className="w-3.5 h-3.5" /> View
-                                                                                </button>
-
-                                                                                {grant.isAuthored && !grant.superseded && !isAmendTarget && (
-                                                                                    <button onClick={() => setAmendingRecordId(recId)} className="px-3 py-2 rounded-lg bg-amber-950/30 text-amber-400 hover:bg-amber-900/50"><Edit className="w-3.5 h-3.5" /></button>
-                                                                                )}
-                                                                            </div>
-
-                                                                            {isAmendTarget && (
-                                                                                <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2">
-                                                                                    <input type="file" onChange={e => setAmendFile(e.target.files?.[0] || null)} className="text-[9px] file:py-1 file:px-2 file:rounded file:bg-muted" />
-                                                                                    <div className="flex gap-2">
-                                                                                        <button onClick={() => handleAmendRecord(grant)} disabled={!amendFile || isAmending} className="flex-1 py-1.5 rounded text-[10px] bg-amber-500 text-background font-bold flex justify-center items-center gap-1">{isAmending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm Amend'}</button>
-                                                                                        <button onClick={() => {setAmendingRecordId(null); setAmendFile(null);}} className="px-3 py-1.5 rounded text-[10px] bg-muted text-foreground">Cancel</button>
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div>
-                                                        <h4 className="text-xs font-bold text-amber-500 mb-3 flex items-center gap-2"><Edit className="w-3.5 h-3.5"/> Past Authored Records (Amend Only)</h4>
-                                                        {authoredList.length === 0 ? <p className="text-[11px] text-muted-foreground">No other authored records found.</p> : (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                {authoredList.map((grant) => {
-                                                                    const recId = getRecordId(grant);
-                                                                    const isAmendTarget = amendingRecordId === recId;
-                                                                    return (
-                                                                        <div key={recId} className={`p-4 rounded-xl border border-amber-900/30 bg-background/40 ${grant.superseded ? 'opacity-50' : ''}`}>
-                                                                            <div className="flex justify-between items-start mb-1">
-                                                                                <h3 className={`text-[12px] font-bold font-mono ${grant.superseded ? 'line-through' : ''}`}>#{recId}</h3>
-                                                                                <Badge variant="outline" className="text-[8px] h-4 px-1.5 border-amber-900/50 text-amber-500/70">Locked</Badge>
-                                                                            </div>
-                                                                            <p className="text-[10px] text-muted-foreground truncate mb-3">{grant.recordType}</p>
-
-                                                                            {!grant.superseded && !isAmendTarget && (
-                                                                                <button onClick={() => setAmendingRecordId(recId)} className="w-full py-2 rounded-lg text-[11px] font-semibold bg-amber-950/30 text-amber-400 hover:bg-amber-900/50 flex items-center justify-center gap-1.5">
-                                                                                    <Edit className="w-3.5 h-3.5" /> Amend Record
-                                                                                </button>
-                                                                            )}
-
-                                                                            {isAmendTarget && (
-                                                                                <div className="mt-2 pt-2 border-t border-border flex flex-col gap-2">
-                                                                                    <input type="file" onChange={e => setAmendFile(e.target.files?.[0] || null)} className="text-[9px] file:py-1 file:px-2 file:rounded file:bg-muted" />
-                                                                                    <div className="flex gap-2">
-                                                                                        <button onClick={() => handleAmendRecord(grant)} disabled={!amendFile || isAmending} className="flex-1 py-1.5 rounded text-[10px] bg-amber-500 text-background font-bold flex justify-center items-center gap-1">{isAmending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm Amend'}</button>
-                                                                                        <button onClick={() => {setAmendingRecordId(null); setAmendFile(null);}} className="px-3 py-1.5 rounded text-[10px] bg-muted text-foreground">Cancel</button>
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </GlassCard>
-                            </MagicCard>
-                        </div>
+                        <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => openIpfs(record.ipfsCid)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View
+                        </Button>
+                      </div>
                     </div>
-
-                    <div className="flex gap-4">
-                        <div className="flex-1">
-                            <MagicCard className="h-full bg-transparent" gradientColor='hsl(var(--muted))'>
-                                <GlassCard>
-                                    <div className="p-5 flex flex-col items-center justify-center h-full text-center">
-                                        <Upload className="w-6 h-6 text-accent mb-3" />
-                                        <h3 className="text-[13px] font-semibold mb-4">Secure Minting Engine</h3>
-                                        <div className="w-full max-w-[280px] flex flex-col gap-3">
-                                            {selectedPatient ? (
-                                                <div className="px-3 py-2 bg-secondary/10 border border-secondary/30 rounded-xl text-[11px] font-mono text-secondary text-left">Minting For: {selectedPatient.slice(0,12)}...</div>
-                                            ) : (
-                                                <input type="text" placeholder="Patient Wallet (0x...)" value={patientAddressToMint} onChange={(e) => setPatientAddressToMint(e.target.value)} className="w-full text-[11px] px-3 py-2.5 border rounded-xl bg-background font-mono" />
-                                            )}
-                                            <input type="file" accept=".pdf" onChange={(e) => setFileToMint(e.target.files?.[0] || null)} className="w-full text-[11px] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-muted file:text-foreground cursor-pointer" />
-                                            {episodes.length > 0 && (
-                                                <select value={selectedEpisodeId} onChange={(e) => setSelectedEpisodeId(e.target.value)} className="w-full text-[11px] px-3 py-2.5 border rounded-xl bg-background text-foreground">
-                                                    <option value="">No Episode (ungrouped)</option>
-                                                    {episodes.map(ep => (
-                                                        <option key={ep.episodeId} value={String(ep.episodeId)}>{ep.title}</option>
-                                                    ))}
-                                                </select>
-                                            )}
-                                            <ShimmerButton onClick={handleUploadAndMint} disabled={isUploading || !fileToMint || (!selectedPatient && !patientAddressToMint)} className="py-2.5 rounded-xl text-[12px] font-bold border-none" background='hsl(var(--accent))'>
-                                                <span className="flex gap-2 text-background">{isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{isUploading ? 'Minting...' : 'Mint Record'}</span>
-                                            </ShimmerButton>
-                                        </div>
-                                    </div>
-                                </GlassCard>
-                            </MagicCard>
-                        </div>
-                    </div>
-                </main>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* New Episode Modal */}
-            <AnimatePresence>
-                {showEpisodeModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md mx-4 bg-card border border-border rounded-2xl shadow-2xl">
-                            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-border/50">
-                                <h3 className="text-sm font-semibold flex items-center gap-2"><ClipboardList className="w-4 h-4 text-secondary" /> New Episode of Care</h3>
-                                <button onClick={() => setShowEpisodeModal(false)} disabled={isCreatingEpisode} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
-                            </div>
-                            <div className="px-6 py-5 space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Episode Title *</label>
-                                    <input type="text" value={episodeTitle} onChange={e => setEpisodeTitle(e.target.value)} disabled={isCreatingEpisode} placeholder="e.g. Post-Op Cardiac Recovery" className="w-full px-3 py-2 rounded-xl border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40 disabled:opacity-50" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Description (optional)</label>
-                                    <textarea value={episodeDescription} onChange={e => setEpisodeDescription(e.target.value)} disabled={isCreatingEpisode} placeholder="Brief notes about this episode..." rows={3} className="w-full px-3 py-2 rounded-xl border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40 disabled:opacity-50 resize-none" />
-                                </div>
-                                {selectedPatient && <p className="text-[10px] text-muted-foreground">Patient: <span className="font-mono">{selectedPatient.slice(0, 14)}...</span></p>}
-                                <button onClick={handleCreateEpisode} disabled={isCreatingEpisode || !episodeTitle.trim()} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
-                                    {isCreatingEpisode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                    {isCreatingEpisode ? 'Creating...' : 'Create Episode'}
-                                </button>
-                            </div>
-                        </motion.div>
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-sm font-semibold text-neutral-900">Past Authored Records (Amend Only)</p>
+              {authoredRecords.length === 0 ? (
+                <p className="mt-1 text-sm text-neutral-500">No authored records found.</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {authoredRecords.map((record) => (
+                    <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-900">#{record.recordId || record.id}</p>
+                          <p className="text-xs text-neutral-500">{record.recordType}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={record.superseded ? 'superseded' : 'latest'} />
+                          {!record.superseded ? (
+                            <Button
+                              className="bg-amber-50 text-amber-700 hover:bg-amber-100"
+                              onClick={() => setAmendingId(record.recordId || record.id)}
+                            >
+                              <FilePenLine className="mr-2 h-4 w-4" />
+                              Amend
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {amendingId === (record.recordId || record.id) ? (
+                        <div className="mt-3 space-y-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            onChange={(event) => setAmendFile(event.target.files?.[0] || null)}
+                            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              className="bg-amber-600 text-white hover:bg-amber-500"
+                              disabled={amendingId === (record.recordId || record.id) && !amendFile}
+                              onClick={() => handleAmend(record)}
+                            >
+                              Confirm Amend
+                            </Button>
+                            <Button variant="outline" className="border-neutral-200 text-neutral-900" onClick={() => setAmendingId(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                )}
-            </AnimatePresence>
-            <QRDisplay 
-                isOpen={showClinicQr} 
-                onClose={() => setShowClinicQr(false)} 
-                payload={{ type: "CLINIC_CHECKIN", doctorAddress: account?.address || user?.walletAddress, clinicName: `Dr. ${displayName}` }} 
-                title="Your Clinic Check-in QR" 
-            />
-            <QRScanner 
-                isOpen={showScanner} 
-                onClose={() => setShowScanner(false)} 
-                onScanSuccess={handlePatientQrScan} 
-            />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {renderMintEngine()}
+    </div>
+  );
+
+  const renderEpisodes = () => (
+    <section className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4">
+      <h2 className="text-base font-semibold text-neutral-900">My Episodes</h2>
+      {selectedPatient ? (
+        <p className="text-sm text-neutral-500">
+          Managing episodes for <WalletAddress address={selectedPatient} className="text-neutral-900" />
+        </p>
+      ) : (
+        <p className="text-sm text-neutral-500">Select a patient first from Patient Vault.</p>
+      )}
+
+      {doctorEpisodes.length === 0 ? (
+        <EmptyState icon={Activity} title="No episodes yet" description="Create one below to group records by care journey." />
+      ) : (
+        <div className="space-y-2">
+          {doctorEpisodes.map((episode) => (
+            <div key={episode.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-sm font-semibold text-neutral-900">{episode.title}</p>
+              <p className="text-xs text-neutral-500">{episode.records.length} records Â· {formatDate(episode.createdAt)}</p>
+            </div>
+          ))}
         </div>
-    );
+      )}
+
+      <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+        <p className="mb-2 text-sm font-semibold text-neutral-900">Create New Episode</p>
+        <div className="flex gap-2">
+          <input
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none"
+            placeholder="e.g., Knee Surgery April 2026"
+            value={episodeTitle}
+            onChange={(event) => setEpisodeTitle(event.target.value)}
+          />
+          <Button className="bg-indigo-600 text-white hover:bg-indigo-500" disabled={creatingEpisode} onClick={handleCreateEpisode}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            {creatingEpisode ? 'Creating...' : 'Create'}
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderSettings = () => (
+    <section className="rounded-xl border border-neutral-200 bg-white p-4">
+      <h2 className="mb-2 text-base font-semibold text-neutral-900">Settings</h2>
+      <p className="text-sm text-neutral-500">Doctor dashboard settings will appear here.</p>
+    </section>
+  );
+
+  let content = null;
+  if (loading) {
+    content = <LoadingSpinner message="Loading doctor dashboard..." />;
+  } else if (activeNav === 'overview') {
+    content = renderOverview();
+  } else if (activeNav === 'waiting-room') {
+    content = renderWaitingRoom();
+  } else if (activeNav === 'patient-vault') {
+    content = renderPatientVault();
+  } else if (activeNav === 'my-episodes') {
+    content = renderEpisodes();
+  } else {
+    content = renderSettings();
+  }
+
+  return (
+    <>
+      <AppLayout
+        title="Doctor Dashboard"
+        role="DOCTOR"
+        navItems={NAV_ITEMS}
+        activeNav={activeNav}
+        onNavChange={setActiveNav}
+        onLogout={handleLogout}
+        walletAddress={walletAddress}
+        walletConnected={Boolean(walletAddress)}
+        sidebarActions={sidebarActions}
+      >
+        {content}
+      </AppLayout>
+
+      <QRDisplay
+        open={clinicQrOpen}
+        payload={{ type: 'CLINIC_CHECKIN', doctorAddress: walletAddress, clinicName: user?.name || 'MediChain Clinic' }}
+        title="My Clinic QR"
+        subtitle="Print this QR and place it at your reception desk."
+        onClose={() => setClinicQrOpen(false)}
+      />
+
+      <QRScanner
+        open={scannerOpen}
+        expectedType="PATIENT_ID"
+        onClose={() => setScannerOpen(false)}
+        onScanSuccess={(payload) => {
+          setPatientQuery(payload.patientAddress || '');
+          if (payload.patientAddress) {
+            loadPatientVault(payload.patientAddress);
+          }
+        }}
+      />
+    </>
+  );
 }
+
