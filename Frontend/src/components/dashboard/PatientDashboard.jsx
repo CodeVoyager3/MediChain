@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount, useDisconnect, useActiveWallet } from 'thirdweb/react';
-import { getPatientVault, grantAccess, revokeAccess, checkInToClinic, getActiveGrants, getPatientCheckInStatus, leaveClinic } from '../../services/api';
+import { getPatientVault, grantAccess, revokeAccess, checkInToClinic, getActiveGrants, getPatientCheckInStatus, leaveClinic, getPatientEpisodes } from '../../services/api';
 
 // FIX 1: Alias 'History' to 'HistoryIcon' to prevent "Illegal Constructor" error
 import {
@@ -50,7 +50,7 @@ const getCid = (r) => {
 const FALLBACK_CHART_DATA = [{ month: 'Jan', v: 0 }, { month: 'Feb', v: 0 }, { month: 'Mar', v: 0 }, { month: 'Apr', v: 0 }, { month: 'May', v: 0 }, { month: 'Jun', v: 0 }, { month: 'Jul', v: 0 }, { month: 'Aug', v: 0 }, { month: 'Sep', v: 0 }, { month: 'Oct', v: 0 }, { month: 'Nov', v: 0 }, { month: 'Dec', v: 0 }];
 
 const NAV = {
-    main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'records', label: 'My Records', icon: FileText }, { id: 'access', label: 'Access Control', icon: ShieldCheck }, { id: 'appointments', label: 'Appointments', icon: Calendar }],
+    main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'records', label: 'My Records', icon: FileText }, { id: 'episodes', label: 'Episodes', icon: ClipboardList }, { id: 'access', label: 'Access Control', icon: ShieldCheck }, { id: 'appointments', label: 'Appointments', icon: Calendar }],
     features: [{ id: 'prescriptions', label: 'Prescriptions', icon: ClipboardList }, { id: 'scans', label: 'Scans & Imaging', icon: Bot }, { id: 'notifications', label: 'Notifications', icon: Bell }],
     general: [{ id: 'settings', label: 'Settings', icon: Settings }, { id: 'logout', label: 'Log out', icon: LogOut }],
 };
@@ -172,6 +172,8 @@ export default function PatientDashboard() {
     const [isCheckingIn, setIsCheckingIn] = useState(false);
     const [activeCheckIn, setActiveCheckIn] = useState(() => localStorage.getItem('medichain_checkin') || null);
     const [activeGrants, setActiveGrants] = useState([]);
+    const [episodes, setEpisodes] = useState(null);
+    const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
     // --- FIX 3: Robust Viewing Handler ---
     const handleViewDocument = (e, rawCid) => {
@@ -196,6 +198,13 @@ export default function PatientDashboard() {
         catch (err) { setActiveGrants([]); }
     }, []);
 
+    const fetchEpisodes = useCallback(async () => {
+        setLoadingEpisodes(true);
+        try { const res = await getPatientEpisodes(); setEpisodes(res.data || { episodes: [], ungroupedRecords: [] }); }
+        catch (err) { setEpisodes({ episodes: [], ungroupedRecords: [] }); }
+        finally { setLoadingEpisodes(false); }
+    }, []);
+
     const syncCheckInStatus = useCallback(async () => {
         try {
             const res = await getPatientCheckInStatus();
@@ -216,6 +225,10 @@ export default function PatientDashboard() {
         const interval = setInterval(() => { syncCheckInStatus(); }, 5000);
         return () => clearInterval(interval);
     }, [fetchRecords, fetchGrants, syncCheckInStatus]);
+
+    useEffect(() => {
+        if (activeNav === 'episodes' && !episodes) fetchEpisodes();
+    }, [activeNav, episodes, fetchEpisodes]);
 
     const handleLogout = () => {
         if (wallet) disconnect(wallet);
@@ -394,6 +407,79 @@ export default function PatientDashboard() {
                             </CardContent>
                         </ShadcnCard>
                     </div>
+
+                    {/* Episodes of Care View */}
+                    {activeNav === 'episodes' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center"><ClipboardList className="w-3.5 h-3.5 text-secondary" /></div>
+                                <span className="text-[14px] font-semibold">Episodes of Care</span>
+                                <button onClick={fetchEpisodes} className="ml-auto text-[10px] text-secondary hover:underline">Refresh</button>
+                            </div>
+
+                            {loadingEpisodes ? (
+                                <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" /></div>
+                            ) : !episodes ? null : (
+                                <>
+                                    {episodes.episodes && episodes.episodes.length > 0 ? episodes.episodes.map(ep => (
+                                        <ShadcnCard key={ep.episodeId} className="border-border shadow-none bg-card overflow-hidden">
+                                            <CardContent className="p-5">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div>
+                                                        <h3 className="text-[13px] font-semibold text-foreground">{ep.title}</h3>
+                                                        {ep.description && <p className="text-[11px] text-muted-foreground mt-0.5">{ep.description}</p>}
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[9px] px-2 border-secondary/40 text-secondary shrink-0 ml-3">
+                                                        {(ep.records || []).length} record{ep.records?.length !== 1 ? 's' : ''}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground mb-3">Created by: <span className="font-mono">{(ep.createdBy || '').slice(0, 14)}...</span></p>
+                                                {ep.records && ep.records.length > 0 ? (
+                                                    <div className="space-y-2">
+                                                        {ep.records.map(r => (
+                                                            <div key={r.recordId} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-muted/30 border border-border/50 hover:border-secondary/30 cursor-pointer group" onClick={(e) => handleViewDocument(e, getCid(r))}>
+                                                                <Activity className="w-3.5 h-3.5 text-secondary shrink-0" />
+                                                                <span className="flex-1 text-[11px] font-medium truncate">{r.recordType || 'Medical Record'}</span>
+                                                                <span className="text-[10px] font-mono text-muted-foreground">#{r.recordId}</span>
+                                                                <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover:text-secondary transition-colors" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] text-muted-foreground italic">No records linked to this episode yet.</p>
+                                                )}
+                                            </CardContent>
+                                        </ShadcnCard>
+                                    )) : (
+                                        <div className="text-center py-8 text-[11px] text-muted-foreground border border-dashed rounded-xl">No episodes of care found.</div>
+                                    )}
+
+                                    {/* Ungrouped Records */}
+                                    {episodes.ungroupedRecords && episodes.ungroupedRecords.length > 0 && (
+                                        <ShadcnCard className="border-border shadow-none bg-card overflow-hidden border-dashed">
+                                            <CardContent className="p-5">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                                                    <span className="text-[12px] font-semibold text-muted-foreground uppercase tracking-tighter">Ungrouped Records</span>
+                                                    <Badge variant="outline" className="text-[9px] px-2 ml-auto">{episodes.ungroupedRecords.length}</Badge>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {episodes.ungroupedRecords.map(r => (
+                                                        <div key={r.recordId} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-muted/20 border border-border/40 hover:border-secondary/20 cursor-pointer group" onClick={(e) => handleViewDocument(e, getCid(r))}>
+                                                            <Activity className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                                            <span className="flex-1 text-[11px] truncate">{r.recordType || 'Medical Record'}</span>
+                                                            <span className="text-[10px] font-mono text-muted-foreground">#{r.recordId}</span>
+                                                            <Eye className="w-3.5 h-3.5 text-muted-foreground group-hover:text-secondary transition-colors" />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </CardContent>
+                                        </ShadcnCard>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </main>
             </div>
             <GrantAccessModal open={grantModalOpen} onClose={(res) => {

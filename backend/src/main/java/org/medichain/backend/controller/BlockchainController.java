@@ -27,12 +27,13 @@ public class BlockchainController {
 	@PostMapping("/mint")
 	public ResponseEntity<?> mintRecord(@RequestBody MintRecordRequest request) {
 		try {
-			// Pass the recordType to the service
+			// Pass the recordType and optional episodeId to the service
 			String txHash = blockchainService.mintMedicalRecord(
 					request.getPatientAddress(),
 					request.getCid(),
 					request.getPreviousRecordId(),
-					request.getRecordType()
+					request.getRecordType(),
+					request.getEpisodeId()
 			);
 			return ResponseEntity.ok(Map.of(
 					"status", "success",

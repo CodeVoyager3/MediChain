@@ -75,7 +75,7 @@ public class BlockchainService {
 	}
 	
 	@Transactional
-	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId, String recordType) {
+	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId, String recordType, Long episodeId) {
 		try {
 			String doctorAddress = getAuthenticatedWalletAddress();
 			
@@ -102,6 +102,7 @@ public class BlockchainService {
 			record.setSuperseded(false);
 			record.setPreviousRecordId(previousRecordId);
 			record.setTxHash(transactionHash);
+			record.setEpisodeId(episodeId); // nullable — null when not provided
 			
 			medicalRecordRepository.save(record);
 			return transactionHash;

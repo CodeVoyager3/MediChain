@@ -80,6 +80,7 @@ export async function getPatientVault() {
     return { ...res, data: (res.data || []).map(normalizeRecord) };
 }
 export function checkInToClinic(doctorAddress) { return request('POST', '/api/v1/dashboard/patient/check-in', { doctorAddress }); }
+export function getPatientEpisodes() { return request('GET', '/api/v1/dashboard/patient/episodes'); }
 
 export async function getActiveGrants() {
     const res = await request('GET', '/api/v1/blockchain/active-grants');
@@ -102,6 +103,9 @@ export function leaveClinic() { return request('POST', '/api/v1/dashboard/patien
 // --- Doctor Methods ---
 export function getWaitingRoom() { return request('GET', '/api/v1/dashboard/doctor/waiting-room'); }
 export function completeAppointment(checkInId) { return request('POST', '/api/v1/dashboard/doctor/complete-appointment', { checkInId }); }
+export function createEpisode(patientAddress, title, description = '') {
+    return request('POST', '/api/v1/dashboard/doctor/create-episode', { patientAddress, title, description });
+}
 
 export async function getAccessibleRecords(patientAddress) {
     const res = await request('GET', `/api/v1/dashboard/doctor/accessible-records/${normalizeWallet(patientAddress)}`);
@@ -118,8 +122,8 @@ export async function getAccessibleRecords(patientAddress) {
 }
 
 // --- Blockchain Methods ---
-export function mintRecord(patientAddress, cid, recordType = 'Medical Record', previousRecordId = null) {
-    return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid, recordType, previousRecordId });
+export function mintRecord(patientAddress, cid, recordType = 'Medical Record', previousRecordId = null, episodeId = null) {
+    return request('POST', '/api/v1/blockchain/mint', { patientAddress, cid, recordType, previousRecordId, episodeId });
 }
 
 export function amendRecord(patientAddress, cid, previousRecordId, recordType = 'Medical Record') {

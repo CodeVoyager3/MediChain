@@ -88,6 +88,51 @@ function VerificationCheckRow({ icon: Icon, label, description, verified, delay 
     );
 }
 
+function TrustScore({ providerVerified, integrityValid, isLatestVersion }) {
+    const score = (providerVerified ? 40 : 0) + (integrityValid ? 40 : 0) + (isLatestVersion ? 20 : 10);
+    const tier = score >= 90 ? 'HIGH' : score >= 60 ? 'MEDIUM' : 'LOW';
+    const colors = {
+        HIGH: { bg: 'bg-emerald-900/20', border: 'border-emerald-500/40', text: 'text-emerald-400', dot: 'bg-emerald-500' },
+        MEDIUM: { bg: 'bg-yellow-900/20', border: 'border-yellow-500/40', text: 'text-yellow-400', dot: 'bg-yellow-500' },
+        LOW: { bg: 'bg-red-900/20', border: 'border-red-500/40', text: 'text-red-400', dot: 'bg-red-500' },
+    };
+    const c = colors[tier];
+    const reasons = [];
+    if (!providerVerified) reasons.push('Provider signature could not be verified');
+    if (!integrityValid) reasons.push('Cryptographic integrity check failed');
+    if (!isLatestVersion) reasons.push('Record has been superseded by a newer version');
+
+    return (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}
+            className={`mt-4 p-4 rounded-xl border ${c.bg} ${c.border}`}>
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Trust Score</span>
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${c.border} ${c.bg}`}>
+                    <div className={`w-2 h-2 rounded-full ${c.dot}`}></div>
+                    <span className={`text-[11px] font-bold ${c.text}`}>{tier}</span>
+                </div>
+            </div>
+            <div className="flex items-end gap-2 mb-2">
+                <span className={`text-3xl font-bold ${c.text}`}>{score}</span>
+                <span className="text-[11px] text-muted-foreground mb-1">/ 100</span>
+            </div>
+            <div className="w-full bg-border/40 rounded-full h-1.5 mb-3">
+                <div className={`h-1.5 rounded-full ${c.dot}`} style={{ width: `${score}%` }}></div>
+            </div>
+            {reasons.length > 0 && (
+                <ul className="space-y-1">
+                    {reasons.map((r, i) => (
+                        <li key={i} className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                            <XCircle className="w-3 h-3 text-red-500 shrink-0" /> {r}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </motion.div>
+    );
+}
+
+
 export default function InsuranceDashboard() {
     const account = useActiveAccount();
     const { user, logout } = useAuth();
@@ -234,6 +279,12 @@ export default function InsuranceDashboard() {
                                                 <VerificationCheckRow icon={Fingerprint} label="1. Provider Authenticity" description="Verified signature of issuing professional." verified={verificationResult.signature} delay={0.1} />
                                                 <VerificationCheckRow icon={Hash} label="2. Cryptographic Integrity" description="CID hash matches immutable blockchain record." verified={verificationResult.hashMatch} delay={0.3} />
                                                 <VerificationCheckRow icon={AlertTriangle} label="3. Version Control" description={verificationResult.notSuperseded ? "Latest un-amended version." : "WARNING: Superseded version."} verified={verificationResult.notSuperseded} delay={0.5} />
+
+                                                <TrustScore
+                                                    providerVerified={verificationResult.signature}
+                                                    integrityValid={verificationResult.hashMatch}
+                                                    isLatestVersion={verificationResult.notSuperseded}
+                                                />
 
                                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="mt-5 pt-5 border-t border-border">
                                                     {verificationResult.signature && verificationResult.hashMatch ? (
