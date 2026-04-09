@@ -7,6 +7,11 @@ import org.medichain.backend.entity.MedicalRecord;
 import org.medichain.backend.repository.AccessGrantRepository;
 import org.medichain.backend.repository.MedicalRecordRepository;
 import org.medichain.backend.repository.UserRepository;
+import org.medichain.backend.repository.EpisodeRepository;
+import org.medichain.backend.service.ai.EpisodeRuleService;
+import org.medichain.backend.service.ai.GeminiAnalysisService;
+import org.medichain.backend.service.ai.EpisodeMetadataBuilder;
+import org.medichain.backend.service.ai.TrustScoreAggregator;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.web3j.protocol.Web3j;
@@ -30,17 +35,37 @@ class BlockchainServiceTest {
 	private AccessGrantRepository accessGrantRepository;
 	@Mock
 	private UserRepository userRepository;
+	@Mock
+	private EpisodeRepository episodeRepository;
+	@Mock
+	private EpisodeRuleService episodeRuleService;
+	@Mock
+	private GeminiAnalysisService geminiAnalysisService;
+	@Mock
+	private EpisodeMetadataBuilder episodeMetadataBuilder;
+	@Mock
+	private TrustScoreAggregator trustScoreAggregator;
 
 	private BlockchainService blockchainService;
 
 	@BeforeEach
 	void setUp() {
-		blockchainService = new BlockchainService(web3j, medicalRecordRepository, accessGrantRepository, userRepository);
+		blockchainService = new BlockchainService(
+			web3j, 
+			medicalRecordRepository, 
+			accessGrantRepository, 
+			userRepository, 
+			episodeRepository, 
+			episodeRuleService, 
+			geminiAnalysisService, 
+			episodeMetadataBuilder, 
+			trustScoreAggregator
+		);
 	}
 
 	@Test
 	void getVerifiedRecordForInsurer_deniesWhenSqlGrantExpired() {
-		when(accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndExpiresAtAfter(
+		when(accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndIsActiveTrueAndExpiresAtAfter(
 				eq("0xpatient"), eq("0xinsurer"), eq(10L), any()
 		)).thenReturn(false);
 
@@ -71,7 +96,7 @@ class BlockchainServiceTest {
 
 		when(medicalRecordRepository.findByPatientAddressIgnoreCaseAndEpisodeIdOrderByRecordIdDesc("0xpatient", 3L))
 				.thenReturn(List.of(record));
-		when(accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndExpiresAtAfter(
+		when(accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndIsActiveTrueAndExpiresAtAfter(
 				eq("0xpatient"), eq("0xinsurer"), eq(22L), any()
 		)).thenReturn(false);
 

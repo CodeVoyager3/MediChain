@@ -16,6 +16,8 @@ import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 import { useAuth } from '../../context/AuthContext';
 import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, amendRecord, createEpisode } from '../../services/api';
+import { QRDisplay } from '../common/QRDisplay';
+import { QRScanner } from '../common/QRScanner';
 
 const NAV = {
     main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'waiting', label: 'Waiting Room', icon: Clock }],
@@ -58,12 +60,15 @@ function IconBadge({ icon: Icon }) {
 }
 
 export default function DoctorDashboard() {
+    const account = useActiveAccount();
     const { user, logout } = useAuth();
     const { disconnect } = useDisconnect();
     const wallet = useActiveWallet();
 
     const [activeNav, setActiveNav] = useState('overview');
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [showClinicQr, setShowClinicQr] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
 
     const [waitingRoom, setWaitingRoom] = useState([]);
     const [grantedRecords, setGrantedRecords] = useState([]);
@@ -240,7 +245,7 @@ export default function DoctorDashboard() {
         if (!qrPayloadInput.trim()) return;
         try {
             const parsed = JSON.parse(qrPayloadInput);
-            if (parsed?.type !== 'MEDICHAIN_PATIENT') {
+            if (parsed?.type !== 'PATIENT_ID') {
                 throw new Error('Unsupported QR payload type.');
             }
             const patientFromQr = parsed?.patientAddress || parsed?.patientWallet || '';
@@ -249,6 +254,20 @@ export default function DoctorDashboard() {
             setQrPayloadInput('');
         } catch (err) {
             setErrorMsg('Invalid QR payload. Paste a valid MediChain QR payload JSON.');
+        }
+    };
+
+    const handlePatientQrScan = async (payload) => {
+        setShowScanner(false);
+        try {
+            if (payload?.type !== 'PATIENT_ID') {
+                throw new Error('Unsupported QR payload type.');
+            }
+            const patientFromQr = payload?.patientAddress || '';
+            if (!patientFromQr) throw new Error('QR payload missing patientAddress.');
+            await handleSelectPatient(patientFromQr);
+        } catch (err) {
+            setErrorMsg('Invalid QR payload.');
         }
     };
 
@@ -277,6 +296,7 @@ export default function DoctorDashboard() {
                     <div className="flex items-center gap-3">
                         <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-xl hover:bg-muted"><Menu className="w-5 h-5" /></button>
                         <div><h1 className="text-[15px] font-semibold text-foreground">Welcome, Dr. {displayName} 👋</h1></div>
+                        <button onClick={() => setShowClinicQr(true)} className="ml-2 text-[10px] bg-secondary/10 text-secondary px-2 py-1 flex items-center gap-1 rounded hover:bg-secondary/20 transition"><QrCode className="w-3 h-3"/> My Clinic QR</button>
                     </div>
                     <div className="flex items-center gap-2"><AnimatedThemeToggler /></div>
                 </header>
@@ -315,6 +335,7 @@ export default function DoctorDashboard() {
                                                 {selectedPatient && (
                                                     <button onClick={() => setShowEpisodeModal(true)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded flex items-center gap-1 hover:bg-secondary/30 transition"><Plus className="w-3 h-3" />New Episode</button>
                                                 )}
+                                                <button onClick={() => setShowScanner(true)} className="text-[10px] bg-secondary/10 text-secondary px-2 py-1 flex items-center gap-1 rounded hover:bg-secondary/20 transition" title="Scan Patient QR">Scanner</button>
                                                 <input type="text" placeholder="0x..." value={manualSearchQuery} onChange={(e) => setManualSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSelectPatient(manualSearchQuery)} className="border rounded-lg px-2 py-1 text-[11px] font-mono bg-background w-[140px]" />
                                                 <button onClick={() => handleSelectPatient(manualSearchQuery)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded">Find</button>
                                                 {selectedPatient && <button onClick={() => setSelectedPatient(null)} className="text-[10px] bg-red-950/30 text-red-400 px-2 py-1 rounded hover:bg-red-900/50 transition">Close Patient</button>}
@@ -479,6 +500,17 @@ export default function DoctorDashboard() {
                     </div>
                 )}
             </AnimatePresence>
+            <QRDisplay 
+                isOpen={showClinicQr} 
+                onClose={() => setShowClinicQr(false)} 
+                payload={{ type: "CLINIC_CHECKIN", doctorAddress: account?.address || user?.walletAddress, clinicName: `Dr. ${displayName}` }} 
+                title="Your Clinic Check-in QR" 
+            />
+            <QRScanner 
+                isOpen={showScanner} 
+                onClose={() => setShowScanner(false)} 
+                onScanSuccess={handlePatientQrScan} 
+            />
         </div>
     );
 }

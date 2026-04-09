@@ -45,11 +45,14 @@ public class AuthController {
 					request.getSignature()
 			);
 			
-			return ResponseEntity.ok(ApiResponse.success("Authentication successful. Welcome to MediChain.", java.util.Map.of("token", jwtToken)));
-		} catch (Exception e) {
+			return ResponseEntity.ok(ApiResponse.success("Authentication successful. Welcome to MediChain.",
+					java.util.Map.of("token", jwtToken)));
+		}
+		catch (Exception e) {
 			log.warn("Auth failed for {}: {}", request.getWalletAddress(), e.getMessage());
 			// Return 401 Unauthorized if the signature is fake or invalid
-			return ResponseEntity.status(401).body(ApiResponse.error("AUTH_FAILED", "Authentication failed: Invalid signature or nonce."));
+			return ResponseEntity.status(401)
+					.body(ApiResponse.error("AUTH_FAILED", "Authentication failed: Invalid signature or nonce."));
 		}
 	}
 }

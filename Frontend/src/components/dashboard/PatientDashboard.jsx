@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount, useDisconnect, useActiveWallet } from 'thirdweb/react';
 import { getPatientVault, grantAccess, revokeAccess, checkInToClinic, getActiveGrants, getPatientCheckInStatus, leaveClinic, getPatientEpisodes } from '../../services/api';
+import { QRDisplay } from '../common/QRDisplay';
+import { QRScanner } from '../common/QRScanner';
 import QRCode from 'qrcode';
 
 // FIX 1: Alias 'History' to 'HistoryIcon' to prevent "Illegal Constructor" error
@@ -176,6 +178,8 @@ export default function PatientDashboard() {
     const [episodes, setEpisodes] = useState(null);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
     const [qrDataUrl, setQrDataUrl] = useState('');
+    const [showScanner, setShowScanner] = useState(false);
+    const [claimQrEpisodeId, setClaimQrEpisodeId] = useState(null);
 
     // --- FIX 3: Robust Viewing Handler ---
     const handleViewDocument = (e, rawCid) => {
@@ -273,10 +277,25 @@ export default function PatientDashboard() {
     };
 
     const qrPayload = JSON.stringify({
-        type: 'MEDICHAIN_PATIENT',
+        type: 'PATIENT_ID',
         patientAddress: user?.walletAddress || '',
         issuedAt: new Date().toISOString(),
     });
+
+    const handleScanClinicQr = async (payload) => {
+        setShowScanner(false);
+        try {
+            if (payload?.type !== 'CLINIC_CHECKIN') {
+                throw new Error('Unsupported QR payload type. Scan a Clinic QR.');
+            }
+            const doctorAddr = payload?.doctorAddress || '';
+            if (!doctorAddr) throw new Error('QR missing doctorAddress.');
+            setCheckInDoctorAddr(doctorAddr);
+        } catch (err) {
+            setErrorMsg(err.message || 'Invalid QR payload.');
+        }
+    };
+
     const copyQrPayload = async () => {
         try {
             await navigator.clipboard.writeText(qrPayload);
@@ -368,7 +387,10 @@ export default function PatientDashboard() {
                                         <QrCode className="w-6 h-6 text-accent mb-3" />
                                         <h3 className="text-[14px] font-bold mb-1 uppercase tracking-tight">Clinic Direct-Connect</h3>
                                         <div className="w-full max-w-[280px] flex flex-col gap-3 mt-4">
-                                            <input type="text" value={checkInDoctorAddr} onChange={e => setCheckInDoctorAddr(e.target.value)} placeholder="0x..." disabled={isCheckingIn} className="border rounded-xl px-3 py-2.5 text-[12px] font-mono bg-background focus:ring-1 focus:ring-accent outline-none" />
+                                            <div className="flex gap-2 w-full">
+                                                <input type="text" value={checkInDoctorAddr} onChange={e => setCheckInDoctorAddr(e.target.value)} placeholder="0x..." disabled={isCheckingIn} className="flex-1 min-w-0 w-full border rounded-xl px-3 py-2.5 text-[12px] font-mono bg-background focus:ring-1 focus:ring-accent outline-none" />
+                                                <button onClick={() => setShowScanner(true)} className="px-3 py-2.5 bg-secondary/10 text-secondary rounded-xl hover:bg-secondary/20 transition flex items-center justify-center shrink-0" title="Scan Clinic QR"><QrCode className="w-4 h-4"/></button>
+                                            </div>
                                             <ShimmerButton onClick={handleCheckIn} disabled={!checkInDoctorAddr.trim() || isCheckingIn} className="py-2.5 rounded-xl text-[12px] font-bold border-none" background='hsl(var(--accent))'>
                                                 <span className="flex items-center gap-2 text-background">{isCheckingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />} Secure Check-In</span>
                                             </ShimmerButton>
@@ -474,7 +496,10 @@ export default function PatientDashboard() {
                                                         {(ep.records || []).length} record{ep.records?.length !== 1 ? 's' : ''}
                                                     </Badge>
                                                 </div>
-                                                <p className="text-[10px] text-muted-foreground mb-3">Created by: <span className="font-mono">{(ep.createdBy || '').slice(0, 14)}...</span></p>
+                                                <div className="flex justify-between items-center mb-3 border-b border-border/40 pb-2">
+                                                    <p className="text-[10px] text-muted-foreground">Created by: <span className="font-mono">{(ep.createdBy || '').slice(0, 14)}...</span></p>
+                                                    <button onClick={() => setClaimQrEpisodeId(ep.episodeId)} className="text-[10px] bg-secondary/10 text-secondary px-2 py-1 rounded hover:bg-secondary/20 transition flex items-center gap-1"><QrCode className="w-3 h-3"/> Claim QR</button>
+                                                </div>
                                                 {ep.records && ep.records.length > 0 ? (
                                                     <div className="space-y-2">
                                                         {ep.records.map(r => (
@@ -527,6 +552,17 @@ export default function PatientDashboard() {
                 setGrantModalOpen(false);
                 if (res?.success) fetchGrants();
             }} records={records} />
+            <QRScanner 
+                isOpen={showScanner} 
+                onClose={() => setShowScanner(false)} 
+                onScanSuccess={handleScanClinicQr} 
+            />
+            <QRDisplay 
+                isOpen={!!claimQrEpisodeId} 
+                onClose={() => setClaimQrEpisodeId(null)} 
+                payload={{ type: "EPISODE_CLAIM", patientAddress: user?.walletAddress, episodeId: claimQrEpisodeId }} 
+                title="Episode Claim QR (For Insurer)" 
+            />
         </div>
     );
 }

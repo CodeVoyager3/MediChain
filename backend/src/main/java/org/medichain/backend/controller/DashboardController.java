@@ -1,11 +1,9 @@
 package org.medichain.backend.controller;
 
 import lombok.extern.slf4j.Slf4j;
-import org.medichain.backend.dto.ApiResponse;
-import org.medichain.backend.dto.CheckInRequest;
-import org.medichain.backend.dto.CompleteAppointmentRequest;
-import org.medichain.backend.dto.CreateEpisodeRequest;
+import org.medichain.backend.dto.*;
 import org.medichain.backend.entity.Episode;
+import org.medichain.backend.service.BlockchainService;
 import org.medichain.backend.service.DashboardService;
 import org.medichain.backend.service.EpisodeService;
 import org.springframework.http.ResponseEntity;
@@ -23,17 +21,19 @@ public class DashboardController {
 
 	private final DashboardService dashboardService;
 	private final EpisodeService episodeService;
+	private final BlockchainService blockchainService;
 
-	public DashboardController(DashboardService dashboardService, EpisodeService episodeService) {
+	public DashboardController(DashboardService dashboardService, EpisodeService episodeService, BlockchainService blockchainService) {
 		this.dashboardService = dashboardService;
 		this.episodeService = episodeService;
+		this.blockchainService = blockchainService;
 	}
 
 	private String getAuthenticatedWallet() {
 		return (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 	}
 
-	// --- PATIENT ENDPOINTS ---
+	// ========================== PATIENT ENDPOINTS ==========================
 
 	@GetMapping("/patient/vault")
 	@PreAuthorize("hasRole('PATIENT')")
@@ -67,8 +67,69 @@ public class DashboardController {
 			return ResponseEntity.internalServerError().body(ApiResponse.error("PATIENT_EPISODES_FETCH_FAILED", e.getMessage()));
 		}
 	}
+	
+	/**
+	 * Grant time-bound access to a specific doctor for specific records.
+	 * Frontend expects: POST /api/v1/dashboard/patient/grant-access
+	 */
+	@PostMapping("/patient/grant-access")
+	@PreAuthorize("hasRole('PATIENT')")
+	public ResponseEntity<?> grantAccess(@RequestBody GrantAccessRequest request) {
+		try {
+			String txHash = blockchainService.grantAccess(
+					request.getDoctorAddress(), request.getRecordIds(), request.getDurationInSeconds()
+			);
+			log.info("Access granted — tx: {}", txHash);
+			return ResponseEntity.ok(ApiResponse.success("Access granted successfully.", Map.of("txHash", txHash)));
+		} catch (Exception e) {
+			log.error("Grant access failed: {}", e.getMessage());
+			return ResponseEntity.internalServerError().body(ApiResponse.error("GRANT_ACCESS_FAILED", e.getMessage()));
+		}
+	}
+	
+	/**
+	 * Revoke access from a specific doctor for a specific record.
+	 * Frontend expects: POST /api/v1/dashboard/patient/revoke-access
+	 */
+	@PostMapping("/patient/revoke-access")
+	@PreAuthorize("hasRole('PATIENT')")
+	public ResponseEntity<?> revokeAccess(@RequestBody RevokeAccessRequest request) {
+		try {
+			String txHash = blockchainService.revokeAccess(request.getDoctorAddress(), request.getRecordId());
+			return ResponseEntity.ok(ApiResponse.success("Access revoked.", Map.of("txHash", txHash)));
+		} catch (Exception e) {
+			log.error("Revoke access failed: {}", e.getMessage());
+			return ResponseEntity.internalServerError().body(ApiResponse.error("REVOKE_ACCESS_FAILED", e.getMessage()));
+		}
+	}
+	
+	/**
+	 * Leave clinic waiting room.
+	 * Frontend expects: POST /api/v1/dashboard/patient/leave-clinic
+	 */
+	@PostMapping("/patient/leave-clinic")
+	@PreAuthorize("hasRole('PATIENT')")
+	public ResponseEntity<?> leaveClinic() {
+		try {
+			dashboardService.leaveWaitingRoom(getAuthenticatedWallet());
+			return ResponseEntity.ok(ApiResponse.success("Left the waiting room.", Map.of()));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body(ApiResponse.error("LEAVE_CLINIC_FAILED", e.getMessage()));
+		}
+	}
+	
+	@GetMapping("/patient/check-in-status")
+	@PreAuthorize("hasRole('PATIENT')")
+	public ResponseEntity<?> getCheckInStatus() {
+		try {
+			var checkIn = dashboardService.getPatientActiveCheckIn(getAuthenticatedWallet());
+			return ResponseEntity.ok(ApiResponse.success(checkIn != null ? checkIn : ""));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body(ApiResponse.error("CHECKIN_STATUS_FETCH_FAILED", e.getMessage()));
+		}
+	}
 
-	// --- DOCTOR ENDPOINTS ---
+	// ========================== DOCTOR ENDPOINTS ==========================
 
 	@GetMapping("/doctor/waiting-room")
 	@PreAuthorize("hasRole('DOCTOR')")
@@ -89,6 +150,54 @@ public class DashboardController {
 			return ResponseEntity.ok(ApiResponse.success(activeGrants));
 		} catch (Exception e) {
 			return ResponseEntity.internalServerError().body(ApiResponse.error("ACCESSIBLE_RECORDS_FETCH_FAILED", e.getMessage()));
+		}
+	}
+	
+	/**
+	 * Mint a new medical record directly to a patient's wallet.
+	 * Frontend expects: POST /api/v1/dashboard/doctor/mint-record
+	 */
+	@PostMapping("/doctor/mint-record")
+	@PreAuthorize("hasRole('DOCTOR')")
+	public ResponseEntity<?> mintRecord(@RequestBody MintRecordRequest request) {
+		try {
+			var result = blockchainService.mintMedicalRecord(
+					request.getPatientAddress(),
+					request.getCid(),
+					request.getPreviousRecordId(),
+					request.getRecordType(),
+					request.getEpisodeId()
+			);
+			return ResponseEntity.ok(ApiResponse.success("Record minted successfully.", result));
+		} catch (Exception e) {
+			log.error("Mint record failed: {}", e.getMessage());
+			return ResponseEntity.internalServerError().body(ApiResponse.error("MINT_RECORD_FAILED", e.getMessage()));
+		}
+	}
+	
+	/**
+	 * Amend (supersede) an existing record with a new version.
+	 * Frontend expects: POST /api/v1/dashboard/doctor/amend-record
+	 * Under the hood, this is a mint with a non-null previousRecordId.
+	 */
+	@PostMapping("/doctor/amend-record")
+	@PreAuthorize("hasRole('DOCTOR')")
+	public ResponseEntity<?> amendRecord(@RequestBody MintRecordRequest request) {
+		try {
+			if (request.getPreviousRecordId() == null) {
+				return ResponseEntity.badRequest().body(ApiResponse.error("AMEND_RECORD_FAILED", "previousRecordId is required for amendments."));
+			}
+			var result = blockchainService.mintMedicalRecord(
+					request.getPatientAddress(),
+					request.getCid(),
+					request.getPreviousRecordId(),
+					request.getRecordType(),
+					request.getEpisodeId()
+			);
+			return ResponseEntity.ok(ApiResponse.success("Record amended successfully.", result));
+		} catch (Exception e) {
+			log.error("Amend record failed: {}", e.getMessage());
+			return ResponseEntity.internalServerError().body(ApiResponse.error("AMEND_RECORD_FAILED", e.getMessage()));
 		}
 	}
 	
@@ -114,7 +223,7 @@ public class DashboardController {
 					request.getDescription(),
 					doctorWallet
 			);
-			return ResponseEntity.ok(ApiResponse.success(Map.of(
+			return ResponseEntity.ok(ApiResponse.success("Episode created.", Map.of(
 					"episodeId", episode.getEpisodeId(),
 					"patientAddress", episode.getPatientAddress(),
 					"title", episode.getTitle(),
@@ -126,26 +235,25 @@ public class DashboardController {
 			return ResponseEntity.internalServerError().body(ApiResponse.error("CREATE_EPISODE_FAILED", e.getMessage()));
 		}
 	}
-	
-	@GetMapping("/patient/check-in-status")
-	@PreAuthorize("hasRole('PATIENT')")
-	public ResponseEntity<?> getCheckInStatus() {
+
+	// ========================== INSURER ENDPOINTS ==========================
+
+	/**
+	 * Run the Triple-Check verification on a single record.
+	 * Frontend expects: GET /api/v1/dashboard/insurer/verify-record
+	 */
+	@GetMapping("/insurer/verify-record")
+	@PreAuthorize("hasRole('INSURER')")
+	public ResponseEntity<?> verifyRecord(
+			@RequestParam String patientAddress,
+			@RequestParam Long recordId) {
 		try {
-			var checkIn = dashboardService.getPatientActiveCheckIn(getAuthenticatedWallet());
-			return ResponseEntity.ok(ApiResponse.success(checkIn != null ? checkIn : ""));
+			String insurerAddress = getAuthenticatedWallet();
+			var result = blockchainService.getVerifiedRecordForInsurer(insurerAddress, patientAddress, recordId);
+			return ResponseEntity.ok(ApiResponse.success(result));
 		} catch (Exception e) {
-			return ResponseEntity.internalServerError().body(ApiResponse.error("CHECKIN_STATUS_FETCH_FAILED", e.getMessage()));
-		}
-	}
-	
-	@PostMapping("/patient/leave-room")
-	@PreAuthorize("hasRole('PATIENT')")
-	public ResponseEntity<?> leaveWaitingRoom() {
-		try {
-			dashboardService.leaveWaitingRoom(getAuthenticatedWallet());
-			return ResponseEntity.ok(ApiResponse.success("Left the waiting room.", Map.of()));
-		} catch (Exception e) {
-			return ResponseEntity.internalServerError().body(ApiResponse.error("LEAVE_WAITING_ROOM_FAILED", e.getMessage()));
+			log.error("Verify record failed: {}", e.getMessage());
+			return ResponseEntity.internalServerError().body(ApiResponse.error("VERIFY_RECORD_FAILED", e.getMessage()));
 		}
 	}
 }

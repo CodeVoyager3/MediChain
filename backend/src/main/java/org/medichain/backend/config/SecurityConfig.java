@@ -32,8 +32,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						// Allow anyone to request a nonce and login
 						.requestMatchers("/api/v1/auth/**").permitAll()
-						// Protect all blockchain and user data endpoints!
-						.requestMatchers("/api/v1/blockchain/**", "/api/v1/users/**").authenticated()
+						// Protect all data endpoints!
+						.requestMatchers("/api/v1/blockchain/**", "/api/v1/users/**", "/api/v1/dashboard/**", "/api/v1/episodes/**", "/api/insurer/**").authenticated()
 						.anyRequest().permitAll()
 				)
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

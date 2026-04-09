@@ -26,4 +26,7 @@ public class AccessGrant {
 	
 	@Column(name = "expires_at", nullable = false)
 	private LocalDateTime expiresAt;
+	
+	@Column(name = "is_active", nullable = false, columnDefinition = "boolean default true")
+	private boolean isActive = true;
 }

@@ -14,19 +14,21 @@ public interface AccessGrantRepository extends JpaRepository<AccessGrant, UUID> 
 	// For the Patient's "Access Manager" tab (shows who they have granted access to)
 	List<AccessGrant> findByPatientAddressIgnoreCase(String patientAddress);
 	
-	List<AccessGrant> findByPatientAddressIgnoreCaseAndExpiresAtAfter(String patientAddress, LocalDateTime currentTime);
+	// Active grants for a patient (not revoked, not expired)
+	List<AccessGrant> findByPatientAddressIgnoreCaseAndIsActiveTrueAndExpiresAtAfter(String patientAddress, LocalDateTime currentTime);
 	
 	// For the Doctor's Portal (shows all active records they are allowed to view right now)
-	List<AccessGrant> findByViewerAddressIgnoreCaseAndExpiresAtAfter(String viewerAddress, LocalDateTime currentTime);
+	List<AccessGrant> findByViewerAddressIgnoreCaseAndIsActiveTrueAndExpiresAtAfter(String viewerAddress, LocalDateTime currentTime);
 	
-	// Change this specific method from Optional<AccessGrant> to List<AccessGrant>
+	// Find grants for revocation
 	List<AccessGrant> findByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordId(
 			String patientAddress, String viewerAddress, Long recordId);
 	
 	// Fetch active grants for a SPECIFIC patient and doctor combination
-	List<AccessGrant> findByViewerAddressIgnoreCaseAndPatientAddressIgnoreCaseAndExpiresAtAfter(
+	List<AccessGrant> findByViewerAddressIgnoreCaseAndPatientAddressIgnoreCaseAndIsActiveTrueAndExpiresAtAfter(
 			String viewerAddress, String patientAddress, LocalDateTime currentTime);
 
-	boolean existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndExpiresAtAfter(
+	boolean existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndIsActiveTrueAndExpiresAtAfter(
 			String patientAddress, String viewerAddress, Long recordId, LocalDateTime currentTime);
 }
+

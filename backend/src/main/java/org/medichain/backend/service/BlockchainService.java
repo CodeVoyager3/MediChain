@@ -8,6 +8,8 @@ import org.medichain.backend.entity.MedicalRecord;
 import org.medichain.backend.repository.AccessGrantRepository;
 import org.medichain.backend.repository.MedicalRecordRepository;
 import org.medichain.backend.repository.UserRepository;
+import org.medichain.backend.repository.EpisodeRepository;
+import org.medichain.backend.service.ai.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import java.util.Optional;
 @Service
 @Slf4j
 public class BlockchainService {
+	// Triple-check weights used in buildSecurityChecks (V1 legacy display)
 	private static final int TRUST_SCORE_PROVIDER = 40;
 	private static final int TRUST_SCORE_INTEGRITY = 40;
 	private static final int TRUST_SCORE_LATEST = 20;
@@ -35,6 +38,11 @@ public class BlockchainService {
 	private final MedicalRecordRepository medicalRecordRepository;
 	private final AccessGrantRepository accessGrantRepository;
 	private final UserRepository userRepository;
+	private final EpisodeRepository episodeRepository;
+	private final EpisodeRuleService episodeRuleService;
+	private final GeminiAnalysisService geminiAnalysisService;
+	private final EpisodeMetadataBuilder episodeMetadataBuilder;
+	private final TrustScoreAggregator trustScoreAggregator;
 	
 	private MedRecordNFT smartContract;
 	
@@ -47,11 +55,21 @@ public class BlockchainService {
 	public BlockchainService(Web3j web3j,
 			MedicalRecordRepository medicalRecordRepository,
 			AccessGrantRepository accessGrantRepository,
-			UserRepository userRepository) {
+			UserRepository userRepository,
+			EpisodeRepository episodeRepository,
+			EpisodeRuleService episodeRuleService,
+			GeminiAnalysisService geminiAnalysisService,
+			EpisodeMetadataBuilder episodeMetadataBuilder,
+			TrustScoreAggregator trustScoreAggregator) {
 		this.web3j = web3j;
 		this.medicalRecordRepository = medicalRecordRepository;
 		this.accessGrantRepository = accessGrantRepository;
 		this.userRepository = userRepository;
+		this.episodeRepository = episodeRepository;
+		this.episodeRuleService = episodeRuleService;
+		this.geminiAnalysisService = geminiAnalysisService;
+		this.episodeMetadataBuilder = episodeMetadataBuilder;
+		this.trustScoreAggregator = trustScoreAggregator;
 	}
 	
 	@PostConstruct
@@ -109,8 +127,8 @@ public class BlockchainService {
 			record.setRecordType(recordType != null && !recordType.isEmpty() ? recordType : "Medical Record");
 			record.setSuperseded(false);
 			record.setPreviousRecordId(previousRecordId);
+			record.setEpisodeId(episodeId);
 			record.setTxHash(transactionHash);
-			record.setEpisodeId(episodeId); // nullable — null when not provided
 			
 			medicalRecordRepository.save(record);
 			return transactionHash;
@@ -120,7 +138,7 @@ public class BlockchainService {
 	}
 	
 	public List<AccessGrant> getActiveGrants(String patientAddress) {
-		return accessGrantRepository.findByPatientAddressIgnoreCaseAndExpiresAtAfter(
+		return accessGrantRepository.findByPatientAddressIgnoreCaseAndIsActiveTrueAndExpiresAtAfter(
 				patientAddress, LocalDateTime.now()
 		);
 	}
@@ -166,15 +184,16 @@ public class BlockchainService {
 			var receipt = smartContract.revokeAccess(doctorAddress, java.math.BigInteger.valueOf(recordId)).send();
 			String txHash = receipt.getTransactionHash();
 			
-			// FIXED: Handle duplicate rows safely by fetching a List and deleting all of them
-			List<AccessGrant> grantsToDelete = accessGrantRepository.findByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordId(
+			// Soft-delete: set is_active = false instead of removing rows (preserves audit history)
+			List<AccessGrant> grantsToRevoke = accessGrantRepository.findByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordId(
 					patientAddress, doctorAddress, recordId
 			);
-			if (!grantsToDelete.isEmpty()) {
-				accessGrantRepository.deleteAll(grantsToDelete);
+			for (AccessGrant grant : grantsToRevoke) {
+				grant.setActive(false);
+				accessGrantRepository.save(grant);
 			}
 			
-			log.info("Access revoked and cache cleared! Tx Hash: {}", txHash);
+			log.info("Access revoked (is_active=false)! Tx Hash: {}", txHash);
 			return txHash;
 		} catch (Exception e) {
 			log.error("Error revoking access: {}", e.getMessage());
@@ -286,7 +305,7 @@ public class BlockchainService {
 			}
 		}
 
-		return Map.of(
+		Map<String, Object> basePayload = Map.of(
 				"episodeId", episodeId,
 				"patientAddress", patientAddress,
 				"totalRecords", records.size(),
@@ -294,10 +313,42 @@ public class BlockchainService {
 				"deniedCount", deniedCount,
 				"records", verifiedRecords
 		);
+		
+		// If records were verified, calculate Trust Score
+		if (successCount > 0) {
+			try {
+				org.medichain.backend.entity.Episode episode = episodeRepository.findById(episodeId).orElse(null);
+				var ruleResult = episodeRuleService.analyzeRecords(records);
+				
+				Map<String, Object> llmFindings;
+				if (episode != null) {
+					var metaJson = episodeMetadataBuilder.buildMetadata(episode, records);
+					if (ruleResult.getScore() < 40) { // Only call Gemini if rules degraded score
+						llmFindings = geminiAnalysisService.analyze(metaJson, ruleResult.getFindings());
+					} else {
+						llmFindings = Map.of("additional_anomalies", List.of(), "risk_level", "LOW", "confidence", 100, "reasoning", "All Layer-1 Rules Passed. LLM Skipped.", "recommendation", "APPROVE");
+					}
+				} else {
+					llmFindings = Map.of("additional_anomalies", List.of(), "risk_level", "UNKNOWN", "confidence", 0, "reasoning", "Episode metadata null.", "recommendation", "REVIEW");
+				}
+				
+				// Take the first verified record's base score as an indicator, or sum them. For now, max 40 via our logic map.
+				Map<String, Object> firstValidChecks = (Map<String, Object>) verifiedRecords.get(0).get("securityChecks");
+				Map<String, Object> finalTrust = trustScoreAggregator.aggregate(firstValidChecks, ruleResult, llmFindings);
+				
+				Map<String, Object> enrichedPayload = new java.util.HashMap<>(basePayload);
+				enrichedPayload.put("trustScoreResult", finalTrust);
+				return enrichedPayload;
+			} catch (Exception e) {
+				log.error("AI Compilation failed: {}", e.getMessage());
+			}
+		}
+
+		return basePayload;
 	}
 
 	boolean hasActiveSqlGrant(String patientAddress, String viewerAddress, Long recordId) {
-		return accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndExpiresAtAfter(
+		return accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndIsActiveTrueAndExpiresAtAfter(
 				patientAddress, viewerAddress, recordId, LocalDateTime.now()
 		);
 	}

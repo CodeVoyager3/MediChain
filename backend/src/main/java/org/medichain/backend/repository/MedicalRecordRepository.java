@@ -8,10 +8,13 @@ import java.util.List;
 
 @Repository
 public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, Long> {
-	// Fetches the entire vault for a specific patient
+	// Fetches the entire vault for a specific patient (unordered)
 	List<MedicalRecord> findByPatientAddressIgnoreCase(String patientAddress);
 	
-	// Optional: Fetch all records issued by a specific doctor
+	// Fetches vault ordered by creation date (newest first) — spec Section 3.2
+	List<MedicalRecord> findByPatientAddressIgnoreCaseOrderByCreatedAtDesc(String patientAddress);
+	
+	// Fetch all records issued by a specific doctor
 	List<MedicalRecord> findByDoctorAddressIgnoreCase(String doctorAddress);
 	
 	List<MedicalRecord> findByDoctorAddressIgnoreCaseAndPatientAddressIgnoreCase(String doctorAddress, String patientAddress);

@@ -33,7 +33,7 @@ public class DashboardService {
 	}
 	
 	public List<MedicalRecord> getPatientVault(String patientWallet) {
-		return medicalRecordRepository.findByPatientAddressIgnoreCase(patientWallet);
+		return medicalRecordRepository.findByPatientAddressIgnoreCaseOrderByCreatedAtDesc(patientWallet);
 	}
 	
 	@Transactional
@@ -46,7 +46,7 @@ public class DashboardService {
 	}
 	
 	public List<ClinicCheckIn> getWaitingRoom(String doctorWallet) {
-		return checkInRepository.findByDoctorAddressIgnoreCaseAndStatusOrderByCheckInTimeDesc(doctorWallet, "WAITING");
+		return checkInRepository.findByDoctorAddressIgnoreCaseAndStatusOrderByCheckInTimeAsc(doctorWallet, "WAITING");
 	}
 	
 	public ClinicCheckIn getPatientActiveCheckIn(String patientWallet) {
@@ -56,7 +56,7 @@ public class DashboardService {
 	
 	// THE FIX: Explicitly flags records as isGranted and/or isAuthored
 	public List<Map<String, Object>> getAccessibleRecordsForPatient(String doctorWallet, String patientAddress) {
-		List<AccessGrant> grants = accessGrantRepository.findByViewerAddressIgnoreCaseAndPatientAddressIgnoreCaseAndExpiresAtAfter(
+		List<AccessGrant> grants = accessGrantRepository.findByViewerAddressIgnoreCaseAndPatientAddressIgnoreCaseAndIsActiveTrueAndExpiresAtAfter(
 				doctorWallet, patientAddress, LocalDateTime.now()
 		);
 		

@@ -16,6 +16,7 @@ import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 import { useAuth } from '../../context/AuthContext';
 import { verifyEpisodeAsInsurer, viewRecordAsInsurer } from '../../services/api';
+import { QRScanner } from '../common/QRScanner';
 
 const NAV = {
     main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'verify', label: 'Verify Claims', icon: FileSearch }],
@@ -157,6 +158,20 @@ export default function InsuranceDashboard() {
     const [episodeVerification, setEpisodeVerification] = useState(null);
     const [verifyError, setVerifyError] = useState('');
     const [auditTrail, setAuditTrail] = useState([]);
+    const [showScanner, setShowScanner] = useState(false);
+
+    const handleScanClaimQr = (payload) => {
+        setShowScanner(false);
+        try {
+            if (payload?.type !== 'EPISODE_CLAIM') {
+                throw new Error('Unsupported QR payload type. Expecting Episode Claim.');
+            }
+            if (payload.patientAddress) setWalletAddress(payload.patientAddress);
+            if (payload.episodeId) setEpisodeId(String(payload.episodeId));
+        } catch (err) {
+            setVerifyError(err.message || 'Invalid QR payload.');
+        }
+    };
 
     const handleViewDocument = (e, rawCid) => {
         e.stopPropagation();
@@ -265,9 +280,12 @@ export default function InsuranceDashboard() {
                             <MagicCard className="h-full bg-transparent" gradientColor='hsl(var(--muted))'>
                                 <GlassCard>
                                     <div className="p-5 flex flex-col h-full">
-                                        <div className="flex items-center gap-2 mb-5">
-                                            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/10"><FileSearch className="w-3.5 h-3.5 text-secondary" /></div>
-                                            <span className="text-[13px] font-semibold">Verification Engine</span>
+                                        <div className="flex items-center justify-between gap-2 mb-5">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/10"><FileSearch className="w-3.5 h-3.5 text-secondary" /></div>
+                                                <span className="text-[13px] font-semibold">Verification Engine</span>
+                                            </div>
+                                            <button onClick={() => setShowScanner(true)} className="text-[10px] bg-secondary/10 text-secondary px-2 py-1 flex items-center gap-1 rounded hover:bg-secondary/20 transition"><FileSearch className="w-3 h-3"/> Scan Claim</button>
                                         </div>
                                         <div className="space-y-4">
                                             <div>
@@ -438,6 +456,11 @@ export default function InsuranceDashboard() {
                     </div>
                 </main>
             </div>
+            <QRScanner 
+                isOpen={showScanner} 
+                onClose={() => setShowScanner(false)} 
+                onScanSuccess={handleScanClaimQr} 
+            />
         </div>
     );
 }

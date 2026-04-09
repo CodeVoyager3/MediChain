@@ -98,7 +98,7 @@ export async function getPatientVault() {
     return { ...res, data: (res.data || []).map(normalizeRecord) };
 }
 export function checkInToClinic(doctorAddress) { return request('POST', '/api/v1/dashboard/patient/check-in', { doctorAddress }); }
-export function getPatientEpisodes() { return request('GET', '/api/v1/dashboard/patient/episodes'); }
+export function getPatientEpisodes() { return request('GET', '/api/v1/episodes/patient'); }
 
 export async function getActiveGrants() {
     const res = await request('GET', '/api/v1/blockchain/active-grants');
@@ -122,7 +122,7 @@ export function leaveClinic() { return request('POST', '/api/v1/dashboard/patien
 export function getWaitingRoom() { return request('GET', '/api/v1/dashboard/doctor/waiting-room'); }
 export function completeAppointment(checkInId) { return request('POST', '/api/v1/dashboard/doctor/complete-appointment', { checkInId }); }
 export function createEpisode(patientAddress, title, description = '') {
-    return request('POST', '/api/v1/dashboard/doctor/create-episode', { patientAddress, title, description });
+    return request('POST', '/api/v1/episodes/create', { patientAddress, title, description });
 }
 
 export async function getAccessibleRecords(patientAddress) {
