@@ -55,4 +55,10 @@ public class AuthController {
 					.body(ApiResponse.error("AUTH_FAILED", "Authentication failed: Invalid signature or nonce."));
 		}
 	}
+
+	// Lightweight health check for Uptime Monitors to prevent Render spin-down
+	@GetMapping("/health")
+	public ResponseEntity<?> healthCheck() {
+		return ResponseEntity.ok(ApiResponse.success("MediChain Backend is active."));
+	}
 }
