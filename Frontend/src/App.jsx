@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './components/common/ToastNotification';
 
 // Components
@@ -98,11 +99,13 @@ function AppContent() {
 export default function App() {
     return (
         <BrowserRouter>
-            <AuthProvider>
-                <ToastProvider>
-                    <AppContent />
-                </ToastProvider>
-            </AuthProvider>
+            <ThemeProvider>
+                <AuthProvider>
+                    <ToastProvider>
+                        <AppContent />
+                    </ToastProvider>
+                </AuthProvider>
+            </ThemeProvider>
         </BrowserRouter>
     );
 }

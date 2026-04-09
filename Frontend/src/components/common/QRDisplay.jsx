@@ -33,7 +33,7 @@ export default function QRDisplay({ open, payload, title, subtitle, onClose }) {
         <h3 className="text-base font-semibold text-[#F1F5F9]">{title}</h3>
         <p className="mt-1 text-sm text-[#94A3B8]">{subtitle}</p>
 
-        <div className="mt-4 inline-flex rounded-lg bg-white p-3">
+        <div className="mt-4 inline-flex rounded-lg bg-card p-3">
           <img src={qrUrl} alt="Generated QR Code" width={256} height={256} />
         </div>
 

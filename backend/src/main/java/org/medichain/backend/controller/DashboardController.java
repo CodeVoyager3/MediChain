@@ -153,6 +153,17 @@ public class DashboardController {
 		}
 	}
 	
+	@GetMapping("/doctor/episodes/{patientAddress}")
+	@PreAuthorize("hasRole('DOCTOR')")
+	public ResponseEntity<?> getDoctorPatientEpisodes(@PathVariable String patientAddress) {
+		try {
+			var result = episodeService.getPatientEpisodes(patientAddress);
+			return ResponseEntity.ok(ApiResponse.success(result));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body(ApiResponse.error("DOCTOR_EPISODES_FETCH_FAILED", e.getMessage()));
+		}
+	}
+	
 	/**
 	 * Mint a new medical record directly to a patient's wallet.
 	 * Frontend expects: POST /api/v1/dashboard/doctor/mint-record
@@ -254,6 +265,25 @@ public class DashboardController {
 		} catch (Exception e) {
 			log.error("Verify record failed: {}", e.getMessage());
 			return ResponseEntity.internalServerError().body(ApiResponse.error("VERIFY_RECORD_FAILED", e.getMessage()));
+		}
+	}
+	
+	/**
+	 * Run the Triple-Check verification on an entire episode.
+	 * Frontend expects: GET /api/v1/dashboard/insurer/verify-episode
+	 */
+	@GetMapping("/insurer/verify-episode")
+	@PreAuthorize("hasRole('INSURER')")
+	public ResponseEntity<?> verifyEpisode(
+			@RequestParam String patientAddress,
+			@RequestParam Long episodeId) {
+		try {
+			String insurerAddress = getAuthenticatedWallet();
+			var result = blockchainService.verifyEpisodeForInsurer(insurerAddress, patientAddress, episodeId);
+			return ResponseEntity.ok(ApiResponse.success(result));
+		} catch (Exception e) {
+			log.error("Verify episode failed: {}", e.getMessage());
+			return ResponseEntity.internalServerError().body(ApiResponse.error("VERIFY_EPISODE_FAILED", e.getMessage()));
 		}
 	}
 }

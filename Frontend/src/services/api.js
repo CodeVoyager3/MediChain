@@ -119,7 +119,7 @@ function normalizeEpisode(raw = {}) {
     id: raw.id ?? raw.episodeId ?? raw.episode_id ?? null,
     title: raw.title ?? raw.episodeTitle ?? raw.name ?? 'Episode of Care',
     createdAt: raw.createdAt ?? raw.created_at ?? null,
-    doctorAddress: raw.doctorAddress ?? raw.doctor_address ?? raw.creatorAddress ?? '',
+    doctorAddress: raw.doctorAddress ?? raw.doctor_address ?? raw.creatorAddress ?? raw.createdBy ?? '',
     records: Array.isArray(items) ? items.map(normalizeRecord) : [],
   };
 }
@@ -140,25 +140,29 @@ function normalizeAccessGrant(raw = {}) {
 }
 
 // --- Auth ---
-export function requestNonce(walletAddress) {
+export async function requestNonce(walletAddress) {
   const wallet = normalizeWallet(walletAddress);
-  return requestWithFallback('POST', ['/api/v1/auth/nonce', '/api/auth/request-nonce'], { body: { walletAddress: wallet } });
+  const res = await requestWithFallback('POST', ['/api/v1/auth/nonce', '/api/auth/request-nonce'], { body: { walletAddress: wallet } });
+  return { ...res, messageToSign: res.messageToSign ?? res.data?.messageToSign };
 }
 
-export function verifySignature(walletAddress, signature) {
+export async function verifySignature(walletAddress, signature) {
   const wallet = normalizeWallet(walletAddress);
-  return requestWithFallback('POST', ['/api/v1/auth/verify', '/api/auth/verify-signature'], {
+  const res = await requestWithFallback('POST', ['/api/v1/auth/verify', '/api/auth/verify-signature'], {
     body: { walletAddress: wallet, signature },
   });
+  return { ...res, token: res.token ?? res.data?.token };
 }
 
-export function registerUser(name, role) {
-  return requestWithFallback('POST', ['/api/v1/users/register', '/api/auth/register'], { body: { name, role } });
+export async function registerUser(name, role) {
+  const res = await requestWithFallback('POST', ['/api/v1/users/register', '/api/auth/register'], { body: { name, role } });
+  return { ...res, user: res.user ?? res.data?.user };
 }
 
-export function getUserProfile(walletAddress) {
+export async function getUserProfile(walletAddress) {
   const wallet = normalizeWallet(walletAddress);
-  return requestWithFallback('GET', [`/api/v1/users/profile/${wallet}`, '/api/auth/profile']);
+  const res = await requestWithFallback('GET', [`/api/v1/users/profile/${wallet}`, '/api/auth/profile']);
+  return { ...res, user: res.user ?? res.data?.user };
 }
 
 // --- Patient ---
@@ -176,12 +180,16 @@ export async function getPatientVault() {
 export async function getPatientEpisodes(patientAddress = '') {
   const normalized = normalizeWallet(patientAddress);
   const paths = ['/api/v1/dashboard/patient/episodes'];
-  if (normalized) paths.push(`/api/v1/episodes/patient/${normalized}`);
+  if (normalized) {
+    paths.push(`/api/v1/dashboard/doctor/episodes/${normalized}`);
+    paths.push(`/api/v1/episodes/patient/${normalized}`);
+  }
   const res = await requestWithFallback('GET', paths);
-  const source = res.data || res.episodes || [];
+  const source = res.data?.episodes || res.episodes || [];
   return {
     ...res,
     data: Array.isArray(source) ? source.map(normalizeEpisode) : [],
+    ungroupedRecords: Array.isArray(res.data?.ungroupedRecords) ? res.data.ungroupedRecords : [],
   };
 }
 
@@ -295,6 +303,13 @@ export async function verifyRecord(patientAddress, recordId, insurerAddress = ''
       body: { insurerAddress: insurer, patientAddress: patient, recordId },
     });
   }
+}
+
+export function verifyEpisode(patientAddress, episodeId) {
+  const patient = normalizeWallet(patientAddress);
+  return requestWithFallback('GET', [
+    `/api/v1/dashboard/insurer/verify-episode?patientAddress=${encodeURIComponent(patient)}&episodeId=${encodeURIComponent(episodeId)}`,
+  ]);
 }
 
 export function analyzeEpisode(episodeId) {

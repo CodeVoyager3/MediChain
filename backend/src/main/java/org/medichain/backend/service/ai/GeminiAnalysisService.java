@@ -16,9 +16,11 @@ import java.util.Map;
 @Service
 @Slf4j
 public class GeminiAnalysisService {
-
-	@Value("${gemini.api.key:YOUR_GEMINI_KEY}")
+	@Value("${gemini.api.key}")
 	private String apiKey;
+
+	@Value("${gemini.model.name:gemini-1.5-flash}")
+	private String modelName;
 
 	private final RestTemplate restTemplate = new RestTemplate();
 	private final ObjectMapper objectMapper = new ObjectMapper();
@@ -30,7 +32,7 @@ public class GeminiAnalysisService {
 		}
 
 		try {
-			String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+			String url = String.format("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", modelName, apiKey);
 
 			String prompt = "You are a medical insurance fraud detection AI.\n" +
 					"Analyze the following Episode of Care for logical inconsistencies, " +

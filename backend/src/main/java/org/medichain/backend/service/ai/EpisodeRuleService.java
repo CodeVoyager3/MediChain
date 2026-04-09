@@ -139,7 +139,6 @@ public class EpisodeRuleService {
 						"Duplicate Record Type", 15, "ORANGE",
 						"Multiple non-superseded '" + entry.getKey() + "' records detected (" + entry.getValue() + " instances)."
 				));
-				break; // Only deduct once even if multiple types are duplicated
 			}
 		}
 	}

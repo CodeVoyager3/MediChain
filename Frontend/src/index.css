@@ -114,13 +114,17 @@
 /* View transition for theme toggle */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation: none;/* Override Thirdweb internal styles with higher specificity */
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Override Thirdweb internal styles with higher specificity */
 button.btn-connect-navbar, 
 button.btn-connect-navbar-mobile,
 button.tw-connect-wallet {
   border-radius: 9999px !important;
-  background-color: hsl(var(--background)) !important; /* Soft Mint / Creme */
-  color: hsl(var(--foreground)) !important; /* Steel Blue */
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
   font-family: inherit !important;
   font-weight: 600 !important;
   font-size: 0.825rem !important;
@@ -138,8 +142,6 @@ button.tw-connect-wallet:hover {
   opacity: 0.92 !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.16) !important;
-}
-  mix-blend-mode: normal;
 }
 
 @keyframes float-particle {

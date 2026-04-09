@@ -11,7 +11,12 @@ const ROLES = [
 ];
 
 export default function RegisterModal() {
-    const { showRegister, register, logout } = useAuth();
+    const auth = useAuth();
+    if (!auth) {
+        console.error('[RegisterModal] Auth context not found! Check Provider wrapping.');
+        return null;
+    }
+    const { showRegister, register, logout } = auth;
 
     // 2. NEW: Initialize the hooks
     const { disconnect } = useDisconnect();

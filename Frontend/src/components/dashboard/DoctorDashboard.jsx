@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useActiveAccount, useActiveWallet, useDisconnect } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
 import { upload } from 'thirdweb/storage';
@@ -48,7 +48,7 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-const RECORD_TYPES = ['Diagnosis', 'Lab Report', 'Surgery Report', 'Prescription', 'Final Bill', 'Other'];
+const RECORD_TYPES = ['Diagnosis', 'Lab Report', 'Surgery Report', 'Prescription', 'Final Bill', 'Referral', 'Procedure', 'Other'];
 
 function formatDate(value) {
   if (!value) return 'â€”';
@@ -67,7 +67,10 @@ function waitTimeLabel(value) {
 
 function openIpfs(cid) {
   if (!cid) return;
-  window.open(`https://gateway.pinata.cloud/ipfs/${cid}`, '_blank', 'noopener,noreferrer');
+  let cleanCid = String(cid).trim();
+  if (cleanCid.startsWith('ipfs://')) cleanCid = cleanCid.replace('ipfs://', '');
+  if (cleanCid.startsWith('ipfs/')) cleanCid = cleanCid.replace('ipfs/', '');
+  window.open(`https://ipfs.io/ipfs/${cleanCid}`, '_blank', 'noopener,noreferrer');
 }
 
 export default function DoctorDashboard() {
@@ -111,6 +114,7 @@ export default function DoctorDashboard() {
   }, []);
 
   const loadPatientVault = useCallback(async (patientAddress) => {
+    console.log('[Vault] Attempting to load vault for:', patientAddress);
     const normalized = String(patientAddress || '').trim().toLowerCase();
     if (!normalized) return;
 
@@ -134,6 +138,7 @@ export default function DoctorDashboard() {
       } else {
         setDoctorEpisodes([]);
       }
+      setActiveNav('patient-vault');
     } catch (error) {
       toast(error.message || 'Could not open patient vault.', 'error');
     } finally {
@@ -257,27 +262,27 @@ export default function DoctorDashboard() {
 
   const renderOverview = () => (
     <div className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-xl border border-neutral-200 bg-white p-4">
-        <p className="text-sm text-neutral-500">Waiting Room</p>
-        <p className="mt-2 text-3xl font-bold text-neutral-900">{waitingRoom.length}</p>
+      <div className="rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Waiting Room</p>
+        <p className="mt-2 text-3xl font-bold text-foreground">{waitingRoom.length}</p>
       </div>
-      <div className="rounded-xl border border-neutral-200 bg-white p-4">
-        <p className="text-sm text-neutral-500">Selected Patient</p>
-        <p className="mt-2 text-sm font-semibold text-neutral-900">{selectedPatient ? <WalletAddress address={selectedPatient} className="text-neutral-900" /> : 'None'}</p>
+      <div className="rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Selected Patient</p>
+        <p className="mt-2 text-sm font-semibold text-foreground">{selectedPatient ? <WalletAddress address={selectedPatient} className="text-foreground" /> : 'None'}</p>
       </div>
-      <div className="rounded-xl border border-neutral-200 bg-white p-4">
-        <p className="text-sm text-neutral-500">Accessible Records</p>
-        <p className="mt-2 text-3xl font-bold text-neutral-900">{accessibleRecords.length}</p>
+      <div className="rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Accessible Records</p>
+        <p className="mt-2 text-3xl font-bold text-foreground">{accessibleRecords.length}</p>
       </div>
     </div>
   );
 
   const renderWaitingRoom = () => (
-    <div className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4">
+    <div className="space-y-4 rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-neutral-900">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
           Waiting Room
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
             <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
             Live
           </span>
@@ -293,19 +298,19 @@ export default function DoctorDashboard() {
       ) : (
         <div className="space-y-2">
           {waitingRoom.map((entry) => (
-            <div key={entry.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+            <div key={entry.id} className="rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-neutral-900">
-                    <WalletAddress address={entry.patientAddress} className="text-neutral-900" />
+                  <p className="text-sm font-semibold text-foreground">
+                    <WalletAddress address={entry.patientAddress || entry.patient_address} className="text-foreground" />
                   </p>
-                  <p className="text-xs text-neutral-500">{waitTimeLabel(entry.checkedInAt || entry.createdAt)}</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">{waitTimeLabel(entry.checkedInAt || entry.createdAt)}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => loadPatientVault(entry.patientAddress)}>
+                  <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => loadPatientVault(entry.patientAddress || entry.patient_address)}>
                     Open Vault
                   </Button>
-                  <Button className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => handleCompleteAppointment(entry)}>
+                  <Button className="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20" onClick={() => handleCompleteAppointment(entry)}>
                     Complete
                   </Button>
                 </div>
@@ -320,7 +325,7 @@ export default function DoctorDashboard() {
   const renderVaultSearch = () => (
     <div className="flex flex-wrap gap-2">
       <input
-        className="w-full flex-1 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900 outline-none"
+        className="w-full flex-1 rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground outline-none"
         placeholder="0x... patient wallet address"
         value={patientQuery}
         onChange={(event) => setPatientQuery(event.target.value)}
@@ -330,7 +335,7 @@ export default function DoctorDashboard() {
           }
         }}
       />
-      <Button type="button" variant="outline" className="border-neutral-200 text-neutral-900" onClick={() => setScannerOpen(true)}>
+      <Button type="button" variant="outline" className="border-neutral-200 dark:border-white/10 text-foreground" onClick={() => setScannerOpen(true)}>
         <ScanLine className="h-4 w-4" />
       </Button>
       <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => loadPatientVault(patientQuery)}>
@@ -340,21 +345,21 @@ export default function DoctorDashboard() {
   );
 
   const renderMintEngine = () => (
-    <section className="rounded-xl border border-neutral-200 bg-white p-4">
-      <h3 className="mb-3 text-base font-semibold text-neutral-900">Secure Minting Engine</h3>
+    <section className="rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
+      <h3 className="mb-3 text-base font-semibold text-foreground">Secure Minting Engine</h3>
       <div className="space-y-3">
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
           Minting for:{' '}
           {selectedPatient ? (
-            <WalletAddress address={selectedPatient} className="text-neutral-900" />
+            <WalletAddress address={selectedPatient} className="text-foreground" />
           ) : (
-            <span className="text-neutral-900">No patient selected</span>
+            <span className="text-foreground">No patient selected</span>
           )}
         </p>
 
         {!selectedPatient ? (
           <input
-            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900 outline-none"
+            className="w-full rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground outline-none"
             placeholder="0x... patient wallet"
             value={mintPatient}
             onChange={(event) => setMintPatient(event.target.value)}
@@ -365,13 +370,13 @@ export default function DoctorDashboard() {
           type="file"
           accept=".pdf"
           onChange={(event) => setMintFile(event.target.files?.[0] || null)}
-          className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
+          className="w-full rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground"
         />
 
         <select
           value={recordType}
           onChange={(event) => setRecordType(event.target.value)}
-          className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
+          className="w-full rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground"
         >
           {RECORD_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -384,7 +389,7 @@ export default function DoctorDashboard() {
           <select
             value={selectedEpisodeId}
             onChange={(event) => setSelectedEpisodeId(event.target.value)}
-            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"
+            className="w-full rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground"
           >
             <option value="">No Episode</option>
             {doctorEpisodes.map((episode) => (
@@ -405,8 +410,8 @@ export default function DoctorDashboard() {
 
   const renderPatientVault = () => (
     <div className="space-y-4">
-      <section className="rounded-xl border border-neutral-200 bg-white p-4">
-        <h2 className="mb-3 text-base font-semibold text-neutral-900">Patient Vault</h2>
+      <section className="rounded-xl border border-neutral-200 bg-card p-4">
+        <h2 className="mb-3 text-base font-semibold text-foreground">Patient Vault</h2>
         {renderVaultSearch()}
 
         {!selectedPatient ? (
@@ -431,7 +436,7 @@ export default function DoctorDashboard() {
                     <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-neutral-900">{record.filename || record.recordType}</p>
+                          <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
                           <p className="text-xs text-neutral-500">{record.recordType} Â· {formatDate(record.timestamp)}</p>
                         </div>
                         <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => openIpfs(record.ipfsCid)}>
@@ -446,16 +451,16 @@ export default function DoctorDashboard() {
             </div>
 
             <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
-              <p className="text-sm font-semibold text-neutral-900">Past Authored Records (Amend Only)</p>
+              <p className="text-sm font-semibold text-foreground">Past Authored Records (Amend Only)</p>
               {authoredRecords.length === 0 ? (
                 <p className="mt-1 text-sm text-neutral-500">No authored records found.</p>
               ) : (
                 <div className="mt-2 space-y-2">
                   {authoredRecords.map((record) => (
-                    <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-white p-3">
+                    <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-card p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-neutral-900">#{record.recordId || record.id}</p>
+                          <p className="text-sm font-semibold text-foreground">#{record.recordId || record.id}</p>
                           <p className="text-xs text-neutral-500">{record.recordType}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -478,7 +483,7 @@ export default function DoctorDashboard() {
                             type="file"
                             accept=".pdf"
                             onChange={(event) => setAmendFile(event.target.files?.[0] || null)}
-                            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900"
+                            className="w-full rounded-md border border-neutral-200 bg-card px-3 py-2 text-sm text-foreground"
                           />
                           <div className="flex gap-2">
                             <Button
@@ -488,7 +493,7 @@ export default function DoctorDashboard() {
                             >
                               Confirm Amend
                             </Button>
-                            <Button variant="outline" className="border-neutral-200 text-neutral-900" onClick={() => setAmendingId(null)}>
+                            <Button variant="outline" className="border-neutral-200 text-foreground" onClick={() => setAmendingId(null)}>
                               Cancel
                             </Button>
                           </div>
@@ -508,14 +513,14 @@ export default function DoctorDashboard() {
   );
 
   const renderEpisodes = () => (
-    <section className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4">
-      <h2 className="text-base font-semibold text-neutral-900">My Episodes</h2>
+    <section className="space-y-4 rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
+      <h2 className="text-base font-semibold text-foreground">My Episodes</h2>
       {selectedPatient ? (
-        <p className="text-sm text-neutral-500">
-          Managing episodes for <WalletAddress address={selectedPatient} className="text-neutral-900" />
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          Managing episodes for <WalletAddress address={selectedPatient} className="text-foreground" />
         </p>
       ) : (
-        <p className="text-sm text-neutral-500">Select a patient first from Patient Vault.</p>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Select a patient first from Patient Vault.</p>
       )}
 
       {doctorEpisodes.length === 0 ? (
@@ -523,19 +528,19 @@ export default function DoctorDashboard() {
       ) : (
         <div className="space-y-2">
           {doctorEpisodes.map((episode) => (
-            <div key={episode.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
-              <p className="text-sm font-semibold text-neutral-900">{episode.title}</p>
-              <p className="text-xs text-neutral-500">{episode.records.length} records Â· {formatDate(episode.createdAt)}</p>
+            <div key={episode.id} className="rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 p-3">
+              <p className="text-sm font-semibold text-foreground">{episode.title}</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">{episode.records.length} records · {formatDate(episode.createdAt)}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
-        <p className="mb-2 text-sm font-semibold text-neutral-900">Create New Episode</p>
+      <div className="rounded-md border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 p-3">
+        <p className="mb-2 text-sm font-semibold text-foreground">Create New Episode</p>
         <div className="flex gap-2">
           <input
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none"
+            className="w-full rounded-md border border-neutral-200 dark:border-white/10 bg-card px-3 py-2 text-sm text-foreground outline-none"
             placeholder="e.g., Knee Surgery April 2026"
             value={episodeTitle}
             onChange={(event) => setEpisodeTitle(event.target.value)}
@@ -550,9 +555,9 @@ export default function DoctorDashboard() {
   );
 
   const renderSettings = () => (
-    <section className="rounded-xl border border-neutral-200 bg-white p-4">
-      <h2 className="mb-2 text-base font-semibold text-neutral-900">Settings</h2>
-      <p className="text-sm text-neutral-500">Doctor dashboard settings will appear here.</p>
+    <section className="rounded-xl border border-neutral-200 dark:border-white/10 bg-card p-4">
+      <h2 className="mb-2 text-base font-semibold text-foreground">Settings</h2>
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">Doctor dashboard settings will appear here.</p>
     </section>
   );
 
