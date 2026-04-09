@@ -8,4 +8,5 @@ public class MintRecordRequest {
 	private String cid; // The IPFS hash of the medical file
 	private Long previousRecordId; // If amending, the record ID being superseded (null for new records)
 	private String recordType;
+	private Long episodeId; // Optional: link to an episode
 }

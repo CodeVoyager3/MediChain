@@ -1,6 +1,7 @@
 package org.medichain.backend.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.medichain.backend.dto.ApiResponse;
 import org.medichain.backend.dto.UserRegistrationRequest;
 import org.medichain.backend.entity.User;
 import org.medichain.backend.repository.UserRepository;
@@ -8,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -41,9 +41,9 @@ public class UserController {
 			
 			// 3. Prevent already registered users from overwriting their role
 			if (!"UNREGISTERED".equals(user.getRole())) {
-				return ResponseEntity.badRequest().body(Map.of(
-						"status", "error",
-						"message", "Profile is already fully registered as a " + user.getRole()
+				return ResponseEntity.badRequest().body(ApiResponse.error(
+						"USER_ALREADY_REGISTERED",
+						"Profile is already fully registered as a " + user.getRole()
 				));
 			}
 			
@@ -54,15 +54,11 @@ public class UserController {
 			userRepository.save(user);
 			log.info("Profile Completed: {} is now registered as a {}", user.getName(), user.getRole());
 			
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"message", "Welcome to MediChain, " + user.getName(),
-					"user", user
-			));
+			return ResponseEntity.ok(ApiResponse.success("Welcome to MediChain, " + user.getName(), java.util.Map.of("user", user)));
 			
 		} catch (Exception e) {
 			log.error("Registration error: {}", e.getMessage());
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("USER_REGISTRATION_FAILED", e.getMessage()));
 		}
 	}
 	
@@ -77,18 +73,12 @@ public class UserController {
 			Optional<User> userOpt = userRepository.findByWalletAddressIgnoreCase(walletAddress);
 			
 			if (userOpt.isPresent()) {
-				return ResponseEntity.ok(Map.of(
-						"status", "success",
-						"user", userOpt.get()
-				));
+				return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("user", userOpt.get())));
 			} else {
-				return ResponseEntity.status(404).body(Map.of(
-						"status", "error",
-						"message", "User not found."
-				));
+				return ResponseEntity.status(404).body(ApiResponse.error("USER_NOT_FOUND", "User not found."));
 			}
 		} catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("USER_PROFILE_FETCH_FAILED", e.getMessage()));
 		}
 	}
 }

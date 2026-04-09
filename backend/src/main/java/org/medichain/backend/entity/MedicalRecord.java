@@ -32,4 +32,7 @@ public class MedicalRecord {
 	
 	@Column(name = "tx_hash", nullable = false)
 	private String txHash; // To prove to the user that it's actually on the blockchain
+
+	@Column(name = "episode_id")
+	private Long episodeId; // Nullable FK to episodes(episode_id)
 }

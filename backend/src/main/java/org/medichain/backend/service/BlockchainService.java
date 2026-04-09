@@ -7,6 +7,7 @@ import org.medichain.backend.entity.AccessGrant;
 import org.medichain.backend.entity.MedicalRecord;
 import org.medichain.backend.repository.AccessGrantRepository;
 import org.medichain.backend.repository.MedicalRecordRepository;
+import org.medichain.backend.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -25,10 +26,15 @@ import java.util.Optional;
 @Service
 @Slf4j
 public class BlockchainService {
+	private static final int TRUST_SCORE_PROVIDER = 40;
+	private static final int TRUST_SCORE_INTEGRITY = 40;
+	private static final int TRUST_SCORE_LATEST = 20;
+	private static final int TRUST_SCORE_SUPERSEDED = 10;
 	
 	private final Web3j web3j;
 	private final MedicalRecordRepository medicalRecordRepository;
 	private final AccessGrantRepository accessGrantRepository;
+	private final UserRepository userRepository;
 	
 	private MedRecordNFT smartContract;
 	
@@ -40,10 +46,12 @@ public class BlockchainService {
 	
 	public BlockchainService(Web3j web3j,
 			MedicalRecordRepository medicalRecordRepository,
-			AccessGrantRepository accessGrantRepository) {
+			AccessGrantRepository accessGrantRepository,
+			UserRepository userRepository) {
 		this.web3j = web3j;
 		this.medicalRecordRepository = medicalRecordRepository;
 		this.accessGrantRepository = accessGrantRepository;
+		this.userRepository = userRepository;
 	}
 	
 	@PostConstruct
@@ -75,7 +83,7 @@ public class BlockchainService {
 	}
 	
 	@Transactional
-	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId, String recordType) {
+	public String mintMedicalRecord(String patientWalletAddress, String ipfsCid, Long previousRecordId, String recordType, Long episodeId) {
 		try {
 			String doctorAddress = getAuthenticatedWalletAddress();
 			
@@ -102,6 +110,7 @@ public class BlockchainService {
 			record.setSuperseded(false);
 			record.setPreviousRecordId(previousRecordId);
 			record.setTxHash(transactionHash);
+			record.setEpisodeId(episodeId); // nullable — null when not provided
 			
 			medicalRecordRepository.save(record);
 			return transactionHash;
@@ -185,46 +194,150 @@ public class BlockchainService {
 			throw new RuntimeException("Failed to read from blockchain", e);
 		}
 	}
+
+	public boolean checkRecordAccessWithSqlEnforcement(String patientAddress, String viewerAddress, Long recordId) {
+		if (!hasActiveSqlGrant(patientAddress, viewerAddress, recordId)) {
+			return false;
+		}
+		return checkRecordAccess(patientAddress, viewerAddress, recordId);
+	}
 	
 	public Map<String, Object> getVerifiedRecordForInsurer(String insurerAddress, String patientAddress, Long recordId) {
-		
 		try {
 			log.info("Insurer {} requesting access to Record ID: {}", insurerAddress, recordId);
+			if (!hasActiveSqlGrant(patientAddress, insurerAddress, recordId)) {
+				throw new RuntimeException("ACCESS_DENIED_SQL_EXPIRED");
+			}
 			boolean hasAccess = checkRecordAccess(patientAddress, insurerAddress, recordId);
-			if (!hasAccess) throw new RuntimeException("ACCESS_DENIED");
-			
-			var onChainRecord = smartContract.records(BigInteger.valueOf(recordId)).send();
-			String cid = onChainRecord.component1();
-			String issuingDoctor = onChainRecord.component3();
-			BigInteger previousTokenId = onChainRecord.component4();
-			boolean isSuperseded = onChainRecord.component5();
-			
-			boolean isAuthenticityValid = issuingDoctor != null && !issuingDoctor.startsWith("0x0000000000000000");
-			String auditStatus = isSuperseded ? "WARNING: This record has been AMENDED." : "VALID: Latest Version";
-			
-			log.info("Verification Complete. Returning secure metadata.");
-			
+			if (!hasAccess) throw new RuntimeException("ACCESS_DENIED_CHAIN");
+
+			MedicalRecord localRecord = medicalRecordRepository.findById(recordId)
+					.orElseThrow(() -> new RuntimeException("RECORD_NOT_FOUND"));
+			Map<String, Object> securityChecks = buildSecurityChecks(localRecord, recordId);
 			List<MedicalRecord> history = getFullAuditTrail(recordId);
-			
+			Map<String, Object> recordData = (Map<String, Object>) securityChecks.get("recordData");
+
 			return Map.of(
 					"accessGranted", true,
-					"recordData", Map.of(
-							"ipfsCid", cid,
-							"issuingDoctor", issuingDoctor,
-							"isSuperseded", isSuperseded,
-							"previousRecordId", previousTokenId,
-							"auditStatus", auditStatus
-					),
-					"securityChecks", Map.of(
-							"authenticityVerified", isAuthenticityValid,
-							"integrityVerified", true
-					),
-					"auditTrail", history // <-- We attached the Linked List history here!
+					"recordData", recordData,
+					"securityChecks", securityChecks,
+					"auditTrail", history
 			);
 		} catch (Exception e) {
 			log.error("Error fetching record for insurer: {}", e.getMessage());
-			throw new RuntimeException(e);
+			throw new RuntimeException(e.getMessage(), e);
 		}
+	}
+
+	public Map<String, Object> verifyEpisodeForInsurer(String insurerAddress, String patientAddress, Long episodeId) {
+		List<MedicalRecord> records = medicalRecordRepository.findByPatientAddressIgnoreCaseAndEpisodeIdOrderByRecordIdDesc(
+				patientAddress, episodeId
+		);
+		if (records.isEmpty()) {
+			throw new IllegalArgumentException("No records found for this episode.");
+		}
+
+		List<Map<String, Object>> verifiedRecords = new ArrayList<>();
+		int successCount = 0;
+		int deniedCount = 0;
+
+		for (MedicalRecord record : records) {
+			Long recordId = record.getRecordId();
+			boolean hasSqlGrant = hasActiveSqlGrant(patientAddress, insurerAddress, recordId);
+			if (!hasSqlGrant) {
+				verifiedRecords.add(Map.of(
+						"recordId", recordId,
+						"accessGranted", false,
+						"reason", "Access denied. SQL grant missing or expired."
+				));
+				deniedCount++;
+				continue;
+			}
+
+			boolean hasChainAccess = checkRecordAccess(patientAddress, insurerAddress, recordId);
+			if (!hasChainAccess) {
+				verifiedRecords.add(Map.of(
+						"recordId", recordId,
+						"accessGranted", false,
+						"reason", "Access denied on blockchain."
+				));
+				deniedCount++;
+				continue;
+			}
+
+			try {
+				Map<String, Object> securityChecks = buildSecurityChecks(record, recordId);
+				Map<String, Object> recordData = (Map<String, Object>) securityChecks.get("recordData");
+				verifiedRecords.add(Map.of(
+						"recordId", recordId,
+						"accessGranted", true,
+						"recordData", recordData,
+						"securityChecks", securityChecks,
+						"auditTrail", getFullAuditTrail(recordId)
+				));
+				successCount++;
+			} catch (Exception e) {
+				verifiedRecords.add(Map.of(
+						"recordId", recordId,
+						"accessGranted", false,
+						"reason", "Verification failed: " + e.getMessage()
+				));
+				deniedCount++;
+			}
+		}
+
+		return Map.of(
+				"episodeId", episodeId,
+				"patientAddress", patientAddress,
+				"totalRecords", records.size(),
+				"verifiedCount", successCount,
+				"deniedCount", deniedCount,
+				"records", verifiedRecords
+		);
+	}
+
+	boolean hasActiveSqlGrant(String patientAddress, String viewerAddress, Long recordId) {
+		return accessGrantRepository.existsByPatientAddressIgnoreCaseAndViewerAddressIgnoreCaseAndRecordIdAndExpiresAtAfter(
+				patientAddress, viewerAddress, recordId, LocalDateTime.now()
+		);
+	}
+
+	private Map<String, Object> buildSecurityChecks(MedicalRecord localRecord, Long recordId) throws Exception {
+		var onChainRecord = smartContract.records(BigInteger.valueOf(recordId)).send();
+		String cid = onChainRecord.component1();
+		String issuingDoctor = onChainRecord.component3();
+		BigInteger previousTokenId = onChainRecord.component4();
+		boolean isSuperseded = onChainRecord.component5();
+
+		String resolvedDoctor = (issuingDoctor != null && !issuingDoctor.startsWith("0x0000000000000000"))
+				? issuingDoctor
+				: localRecord.getDoctorAddress();
+		boolean providerVerified = resolvedDoctor != null
+				&& userRepository.findByWalletAddressIgnoreCase(resolvedDoctor)
+				.map(u -> "DOCTOR".equalsIgnoreCase(u.getRole()))
+				.orElse(false);
+		boolean integrityValid = cid != null && cid.equalsIgnoreCase(localRecord.getIpfsCid());
+		boolean isLatestVersion = !isSuperseded;
+		int trustScore = (providerVerified ? TRUST_SCORE_PROVIDER : 0)
+				+ (integrityValid ? TRUST_SCORE_INTEGRITY : 0)
+				+ (isLatestVersion ? TRUST_SCORE_LATEST : TRUST_SCORE_SUPERSEDED);
+		String auditStatus = isSuperseded ? "WARNING: This record has been AMENDED." : "VALID: Latest Version";
+
+		return Map.of(
+				"providerVerified", providerVerified,
+				"integrityValid", integrityValid,
+				"isLatestVersion", isLatestVersion,
+				"authenticityVerified", providerVerified,
+				"integrityVerified", integrityValid,
+				"trustScore", trustScore,
+				"recordData", Map.of(
+						"ipfsCid", cid,
+						"issuingDoctor", resolvedDoctor,
+						"isSuperseded", isSuperseded,
+						"previousRecordId", previousTokenId,
+						"auditStatus", auditStatus
+				)
+		);
 	}
 	
 	public List<MedicalRecord> getFullAuditTrail(Long currentRecordId) {

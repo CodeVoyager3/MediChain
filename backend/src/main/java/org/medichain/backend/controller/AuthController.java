@@ -1,13 +1,12 @@
 package org.medichain.backend.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.medichain.backend.dto.ApiResponse;
 import org.medichain.backend.dto.AuthNonceRequest;
 import org.medichain.backend.dto.AuthVerifyRequest;
 import org.medichain.backend.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -29,12 +28,9 @@ public class AuthController {
 			
 			String messageToSign = authService.generateNonce(request.getWalletAddress());
 			
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"messageToSign", messageToSign
-			));
+			return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("messageToSign", messageToSign)));
 		} catch (Exception e) {
-			return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+			return ResponseEntity.internalServerError().body(ApiResponse.error("NONCE_REQUEST_FAILED", e.getMessage()));
 		}
 	}
 	
@@ -49,18 +45,11 @@ public class AuthController {
 					request.getSignature()
 			);
 			
-			return ResponseEntity.ok(Map.of(
-					"status", "success",
-					"message", "Authentication successful. Welcome to MediChain.",
-					"token", jwtToken
-			));
+			return ResponseEntity.ok(ApiResponse.success("Authentication successful. Welcome to MediChain.", java.util.Map.of("token", jwtToken)));
 		} catch (Exception e) {
 			log.warn("Auth failed for {}: {}", request.getWalletAddress(), e.getMessage());
 			// Return 401 Unauthorized if the signature is fake or invalid
-			return ResponseEntity.status(401).body(Map.of(
-					"status", "error",
-					"message", "Authentication failed: Invalid signature or nonce."
-			));
+			return ResponseEntity.status(401).body(ApiResponse.error("AUTH_FAILED", "Authentication failed: Invalid signature or nonce."));
 		}
 	}
 }

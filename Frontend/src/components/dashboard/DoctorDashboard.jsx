@@ -5,7 +5,7 @@ import { upload } from "thirdweb/storage";
 
 const client = createThirdwebClient({ clientId: import.meta.env.VITE_CLIENT_ID });
 
-import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye, Edit } from 'lucide-react';
+import { LayoutDashboard, Users, Clock, Settings, LogOut, Activity, Search, Plus, Calendar, Menu, HelpCircle, Mail, ShieldCheck, Upload, FileSignature, FileUp, ShieldAlert, ChevronsLeft, ClipboardList, Bell, Download, Loader2, X, Eye, Edit, QrCode } from 'lucide-react';
 import { AnimatedThemeToggler } from '../magicui/animated-theme-toggler';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '../effects/AmbientParticles';
 import { GlassCard } from '../effects/GlassCard';
 import { useAuth } from '../../context/AuthContext';
-import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, amendRecord } from '../../services/api';
+import { getWaitingRoom, getAccessibleRecords, completeAppointment, mintRecord, amendRecord, createEpisode } from '../../services/api';
 
 const NAV = {
     main: [{ id: 'overview', label: 'Overview', icon: LayoutDashboard }, { id: 'waiting', label: 'Waiting Room', icon: Clock }],
@@ -75,6 +75,7 @@ export default function DoctorDashboard() {
 
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [manualSearchQuery, setManualSearchQuery] = useState('');
+    const [qrPayloadInput, setQrPayloadInput] = useState('');
 
     const [fileToMint, setFileToMint] = useState(null);
     const [patientAddressToMint, setPatientAddressToMint] = useState('');
@@ -83,6 +84,14 @@ export default function DoctorDashboard() {
     const [amendingRecordId, setAmendingRecordId] = useState(null);
     const [amendFile, setAmendFile] = useState(null);
     const [isAmending, setIsAmending] = useState(false);
+
+    // Episode state
+    const [episodes, setEpisodes] = useState([]);
+    const [showEpisodeModal, setShowEpisodeModal] = useState(false);
+    const [episodeTitle, setEpisodeTitle] = useState('');
+    const [episodeDescription, setEpisodeDescription] = useState('');
+    const [isCreatingEpisode, setIsCreatingEpisode] = useState(false);
+    const [selectedEpisodeId, setSelectedEpisodeId] = useState('');
 
     const displayName = user?.name || 'Doctor';
 
@@ -167,10 +176,13 @@ export default function DoctorDashboard() {
         try {
             console.log("Uploading to IPFS via Thirdweb...");
             const uri = await upload({ client, files: [fileToMint] });
-            await mintRecord(targetAddress, uri, fileToMint.name);
+            const epId = selectedEpisodeId ? parseInt(selectedEpisodeId, 10) : null;
+            if (selectedEpisodeId && isNaN(epId)) { setErrorMsg("Invalid episode selection."); return; }
+            await mintRecord(targetAddress, uri, fileToMint.name, null, epId);
 
             setFileToMint(null);
             setPatientAddressToMint('');
+            setSelectedEpisodeId('');
 
             if (targetAddress === selectedPatient) {
                 await handleSelectPatient(targetAddress);
@@ -202,6 +214,41 @@ export default function DoctorDashboard() {
             setErrorMsg(err.message);
         } finally {
             setIsAmending(false);
+        }
+    };
+
+    const handleCreateEpisode = async () => {
+        const targetAddress = selectedPatient || patientAddressToMint;
+        if (!episodeTitle.trim() || !targetAddress) { setErrorMsg("Episode title and patient address are required."); return; }
+        setIsCreatingEpisode(true); setErrorMsg('');
+        try {
+            const res = await createEpisode(targetAddress, episodeTitle.trim(), episodeDescription.trim());
+            const ep = res.data;
+            setEpisodes(prev => [ep, ...prev]);
+            setSelectedEpisodeId(String(ep.episodeId));
+            setEpisodeTitle('');
+            setEpisodeDescription('');
+            setShowEpisodeModal(false);
+        } catch (err) {
+            setErrorMsg(err.message);
+        } finally {
+            setIsCreatingEpisode(false);
+        }
+    };
+
+    const handleScanQrPayload = async () => {
+        if (!qrPayloadInput.trim()) return;
+        try {
+            const parsed = JSON.parse(qrPayloadInput);
+            if (parsed?.type !== 'MEDICHAIN_PATIENT') {
+                throw new Error('Unsupported QR payload type.');
+            }
+            const patientFromQr = parsed?.patientAddress || parsed?.patientWallet || '';
+            if (!patientFromQr) throw new Error('QR payload missing patientAddress.');
+            await handleSelectPatient(patientFromQr);
+            setQrPayloadInput('');
+        } catch (err) {
+            setErrorMsg('Invalid QR payload. Paste a valid MediChain QR payload JSON.');
         }
     };
 
@@ -265,10 +312,20 @@ export default function DoctorDashboard() {
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center gap-2"><IconBadge icon={ShieldCheck} /><span className="text-[13px] font-semibold">Patient Vault</span></div>
                                             <div className="flex items-center gap-2">
+                                                {selectedPatient && (
+                                                    <button onClick={() => setShowEpisodeModal(true)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded flex items-center gap-1 hover:bg-secondary/30 transition"><Plus className="w-3 h-3" />New Episode</button>
+                                                )}
                                                 <input type="text" placeholder="0x..." value={manualSearchQuery} onChange={(e) => setManualSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSelectPatient(manualSearchQuery)} className="border rounded-lg px-2 py-1 text-[11px] font-mono bg-background w-[140px]" />
                                                 <button onClick={() => handleSelectPatient(manualSearchQuery)} className="text-[10px] bg-secondary/20 text-secondary px-2 py-1 rounded">Find</button>
                                                 {selectedPatient && <button onClick={() => setSelectedPatient(null)} className="text-[10px] bg-red-950/30 text-red-400 px-2 py-1 rounded hover:bg-red-900/50 transition">Close Patient</button>}
                                             </div>
+                                        </div>
+                                        <div className="mb-4 flex items-center gap-2">
+                                            <div className="relative flex-1">
+                                                <QrCode className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+                                                <input type="text" placeholder='Paste QR payload JSON {"patientAddress":"0x..."}' value={qrPayloadInput} onChange={(e) => setQrPayloadInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleScanQrPayload()} className="w-full border rounded-lg pl-8 pr-2 py-2 text-[10px] font-mono bg-background" />
+                                            </div>
+                                            <button onClick={handleScanQrPayload} className="text-[10px] bg-secondary/20 text-secondary px-2.5 py-2 rounded">Scan</button>
                                         </div>
                                         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
                                             {!selectedPatient ? (
@@ -374,6 +431,14 @@ export default function DoctorDashboard() {
                                                 <input type="text" placeholder="Patient Wallet (0x...)" value={patientAddressToMint} onChange={(e) => setPatientAddressToMint(e.target.value)} className="w-full text-[11px] px-3 py-2.5 border rounded-xl bg-background font-mono" />
                                             )}
                                             <input type="file" accept=".pdf" onChange={(e) => setFileToMint(e.target.files?.[0] || null)} className="w-full text-[11px] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-muted file:text-foreground cursor-pointer" />
+                                            {episodes.length > 0 && (
+                                                <select value={selectedEpisodeId} onChange={(e) => setSelectedEpisodeId(e.target.value)} className="w-full text-[11px] px-3 py-2.5 border rounded-xl bg-background text-foreground">
+                                                    <option value="">No Episode (ungrouped)</option>
+                                                    {episodes.map(ep => (
+                                                        <option key={ep.episodeId} value={String(ep.episodeId)}>{ep.title}</option>
+                                                    ))}
+                                                </select>
+                                            )}
                                             <ShimmerButton onClick={handleUploadAndMint} disabled={isUploading || !fileToMint || (!selectedPatient && !patientAddressToMint)} className="py-2.5 rounded-xl text-[12px] font-bold border-none" background='hsl(var(--accent))'>
                                                 <span className="flex gap-2 text-background">{isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{isUploading ? 'Minting...' : 'Mint Record'}</span>
                                             </ShimmerButton>
@@ -385,6 +450,35 @@ export default function DoctorDashboard() {
                     </div>
                 </main>
             </div>
+
+            {/* New Episode Modal */}
+            <AnimatePresence>
+                {showEpisodeModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md mx-4 bg-card border border-border rounded-2xl shadow-2xl">
+                            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-border/50">
+                                <h3 className="text-sm font-semibold flex items-center gap-2"><ClipboardList className="w-4 h-4 text-secondary" /> New Episode of Care</h3>
+                                <button onClick={() => setShowEpisodeModal(false)} disabled={isCreatingEpisode} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                            </div>
+                            <div className="px-6 py-5 space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Episode Title *</label>
+                                    <input type="text" value={episodeTitle} onChange={e => setEpisodeTitle(e.target.value)} disabled={isCreatingEpisode} placeholder="e.g. Post-Op Cardiac Recovery" className="w-full px-3 py-2 rounded-xl border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40 disabled:opacity-50" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 block">Description (optional)</label>
+                                    <textarea value={episodeDescription} onChange={e => setEpisodeDescription(e.target.value)} disabled={isCreatingEpisode} placeholder="Brief notes about this episode..." rows={3} className="w-full px-3 py-2 rounded-xl border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40 disabled:opacity-50 resize-none" />
+                                </div>
+                                {selectedPatient && <p className="text-[10px] text-muted-foreground">Patient: <span className="font-mono">{selectedPatient.slice(0, 14)}...</span></p>}
+                                <button onClick={handleCreateEpisode} disabled={isCreatingEpisode || !episodeTitle.trim()} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-secondary text-background disabled:opacity-50 flex items-center justify-center gap-2">
+                                    {isCreatingEpisode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                    {isCreatingEpisode ? 'Creating...' : 'Create Episode'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
