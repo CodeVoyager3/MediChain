@@ -240,6 +240,9 @@ export default function DoctorDashboard() {
         if (!qrPayloadInput.trim()) return;
         try {
             const parsed = JSON.parse(qrPayloadInput);
+            if (parsed?.type !== 'MEDICHAIN_PATIENT') {
+                throw new Error('Unsupported QR payload type.');
+            }
             const patientFromQr = parsed?.patientAddress || parsed?.patientWallet || '';
             if (!patientFromQr) throw new Error('QR payload missing patientAddress.');
             await handleSelectPatient(patientFromQr);

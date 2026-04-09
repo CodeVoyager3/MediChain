@@ -26,6 +26,10 @@ import java.util.Optional;
 @Service
 @Slf4j
 public class BlockchainService {
+	private static final int TRUST_SCORE_PROVIDER = 40;
+	private static final int TRUST_SCORE_INTEGRITY = 40;
+	private static final int TRUST_SCORE_LATEST = 20;
+	private static final int TRUST_SCORE_SUPERSEDED = 10;
 	
 	private final Web3j web3j;
 	private final MedicalRecordRepository medicalRecordRepository;
@@ -314,7 +318,9 @@ public class BlockchainService {
 				.orElse(false);
 		boolean integrityValid = cid != null && cid.equalsIgnoreCase(localRecord.getIpfsCid());
 		boolean isLatestVersion = !isSuperseded;
-		int trustScore = (providerVerified ? 40 : 0) + (integrityValid ? 40 : 0) + (isLatestVersion ? 20 : 10);
+		int trustScore = (providerVerified ? TRUST_SCORE_PROVIDER : 0)
+				+ (integrityValid ? TRUST_SCORE_INTEGRITY : 0)
+				+ (isLatestVersion ? TRUST_SCORE_LATEST : TRUST_SCORE_SUPERSEDED);
 		String auditStatus = isSuperseded ? "WARNING: This record has been AMENDED." : "VALID: Latest Version";
 
 		return Map.of(

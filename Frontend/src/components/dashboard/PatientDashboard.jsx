@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useActiveAccount, useDisconnect, useActiveWallet } from 'thirdweb/react';
 import { getPatientVault, grantAccess, revokeAccess, checkInToClinic, getActiveGrants, getPatientCheckInStatus, leaveClinic, getPatientEpisodes } from '../../services/api';
+import QRCode from 'qrcode';
 
 // FIX 1: Alias 'History' to 'HistoryIcon' to prevent "Illegal Constructor" error
 import {
@@ -174,6 +175,7 @@ export default function PatientDashboard() {
     const [activeGrants, setActiveGrants] = useState([]);
     const [episodes, setEpisodes] = useState(null);
     const [loadingEpisodes, setLoadingEpisodes] = useState(false);
+    const [qrDataUrl, setQrDataUrl] = useState('');
 
     // --- FIX 3: Robust Viewing Handler ---
     const handleViewDocument = (e, rawCid) => {
@@ -275,7 +277,6 @@ export default function PatientDashboard() {
         patientAddress: user?.walletAddress || '',
         issuedAt: new Date().toISOString(),
     });
-    const qrUrl = `https://quickchart.io/qr?size=180&text=${encodeURIComponent(qrPayload)}`;
     const copyQrPayload = async () => {
         try {
             await navigator.clipboard.writeText(qrPayload);
@@ -283,6 +284,14 @@ export default function PatientDashboard() {
             setErrorMsg('Unable to copy QR payload.');
         }
     };
+
+    useEffect(() => {
+        let isMounted = true;
+        QRCode.toDataURL(qrPayload, { width: 180, margin: 1 })
+            .then((url) => { if (isMounted) setQrDataUrl(url); })
+            .catch(() => { if (isMounted) setQrDataUrl(''); });
+        return () => { isMounted = false; };
+    }, [qrPayload]);
 
     return (
         <div className="flex h-screen overflow-hidden font-body bg-background">
@@ -373,7 +382,11 @@ export default function PatientDashboard() {
                                         <button onClick={copyQrPayload} className="text-[10px] text-secondary hover:underline">Copy Payload</button>
                                     </div>
                                     <div className="flex flex-col sm:flex-row items-center gap-4">
-                                        <img src={qrUrl} alt="Patient QR Payload" className="w-28 h-28 rounded-lg border border-border bg-white p-1" />
+                                        {qrDataUrl ? (
+                                            <img src={qrDataUrl} alt="Patient QR Payload" className="w-28 h-28 rounded-lg border border-border bg-white p-1" />
+                                        ) : (
+                                            <div className="w-28 h-28 rounded-lg border border-border bg-muted/30 grid place-items-center text-[10px] text-muted-foreground">Generating...</div>
+                                        )}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] text-muted-foreground mb-1">Doctor can paste this payload in Doctor Dashboard scan box.</p>
                                             <p className="text-[9px] font-mono break-all text-muted-foreground/80">{qrPayload}</p>
