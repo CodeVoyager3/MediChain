@@ -259,10 +259,10 @@ export default function InsurerDashboard() {
       />
 
       {verificationResult && (
-        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-foreground">Last Verification Summary</h2>
           <TrustScoreBar score={trustScore} />
-          <p className="mt-4 border-t border-neutral-200 dark:border-neutral-800 pt-3 text-sm text-neutral-600 dark:text-neutral-300">
+          <p className="mt-4 border-t pt-3 text-sm text-neutral-600 dark:text-neutral-300">
             <span className="font-bold text-foreground">Recommendation: </span>
             {aiResult?.aiAnalysis?.recommendation || aiResult?.recommendation || verificationResult?.recommendation || 'Review based on trust score and anomalies.'}
           </p>
@@ -279,7 +279,7 @@ export default function InsurerDashboard() {
     return (
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         {/* Left: Input Panel */}
-        <section className="rounded-2xl border border-neutral-200/60 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-bold tracking-tight text-foreground">Verification Engine</h2>
@@ -288,7 +288,7 @@ export default function InsurerDashboard() {
           <div className="mb-4 flex justify-end">
             <Button
               variant="outline"
-              className="border-neutral-200 dark:border-neutral-800 text-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:hover:border-primary/50/30 dark:hover:bg-primary/90/10 dark:hover:text-primary"
+              className="border text-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary dark:hover:border-primary/50/30 dark:hover:bg-primary/90/10 dark:hover:text-primary"
               onClick={() => setScanOpen(true)}
             >
               <ScanLine className="mr-2 h-4 w-4" />
@@ -300,7 +300,7 @@ export default function InsurerDashboard() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Patient Wallet Address</label>
               <input
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm font-mono text-foreground shadow-sm outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                className="w-full rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm font-mono text-foreground shadow-sm outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
                 placeholder="0x..."
                 value={patientAddress}
                 onChange={(event) => setPatientAddress(event.target.value)}
@@ -309,7 +309,7 @@ export default function InsurerDashboard() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Record / Token ID</label>
               <input
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm font-mono text-foreground shadow-sm outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                className="w-full rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm font-mono text-foreground shadow-sm outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
                 placeholder="E.g. 1"
                 value={recordId}
                 onChange={(event) => setRecordId(event.target.value)}
@@ -318,7 +318,7 @@ export default function InsurerDashboard() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Episode ID <span className="normal-case font-normal text-neutral-400">(optional — for AI analysis)</span></label>
               <input
-                className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm font-mono text-foreground shadow-sm outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                className="w-full rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm font-mono text-foreground shadow-sm outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
                 placeholder="E.g. 12"
                 value={episodeId}
                 onChange={(event) => setEpisodeId(event.target.value)}
@@ -336,7 +336,7 @@ export default function InsurerDashboard() {
         </section>
 
         {/* Right: Results Panel */}
-        <section className="rounded-2xl border border-neutral-200/60 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <h2 className="mb-5 text-lg font-bold tracking-tight text-foreground">Triple-Check Results</h2>
           {!verificationResult ? (
             <EmptyState
@@ -349,7 +349,7 @@ export default function InsurerDashboard() {
               {/* Trust Score Progress Bar */}
               <div className="rounded-xl border border-primary/20 dark:border-primary/50/20 bg-gradient-to-br from-primary/5 to-white dark:from-primary/50/10 dark:to-card p-5 shadow-inner">
                 <TrustScoreBar score={trustScore} />
-                <p className="mt-4 border-t border-primary/20 dark:border-neutral-800 pt-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                <p className="mt-4 border-t pt-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
                   <span className="font-bold text-primary dark:text-primary">Recommendation: </span>
                   {actualAi?.recommendation || verificationResult?.recommendation || 'Review based on trust score and anomalies.'}
                 </p>
@@ -358,13 +358,13 @@ export default function InsurerDashboard() {
               {/* Cryptographic Checks */}
               {episodeRecords.length > 1 ? (
                 <div className="space-y-4">
-                  <h3 className="border-b border-neutral-200 dark:border-neutral-800 pb-2 text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                  <h3 className="border-b pb-2 text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                     Cryptographic Checks by Record
                   </h3>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {episodeRecords.map((rec, i) => (
-                      <div key={i} className="group overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/50/10">
-                        <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-3">
+                      <div key={i} className="group overflow-hidden rounded-xl border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/50/10">
+                        <div className="flex items-center justify-between border-b bg-neutral-50 dark:bg-white/5 px-4 py-3">
                           <span className="text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300">{rec.auditTrail?.[0]?.filename || 'Record'}</span>
                           {rec.signature && rec.hashMatch
                             ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -453,7 +453,7 @@ export default function InsurerDashboard() {
                         {actualAi?.reasoning || actualAi?.summary || 'No reasoning provided.'}
                       </p>
                       {(actualAi?.additional_anomalies || actualAi?.additionalAnomalies || []).length > 0 ? (
-                        <div className="mt-4 rounded-lg bg-teal-100/50 p-3">
+                        <div className="mt-4 rounded-lg border bg-teal-100/50 p-3">
                           <ul className="list-disc space-y-1.5 pl-5 text-sm font-medium text-rose-700">
                             {(actualAi?.additional_anomalies || actualAi?.additionalAnomalies || []).map((item, index) => (
                               <li key={`${item}-${index}`}>{item}</li>
@@ -467,7 +467,7 @@ export default function InsurerDashboard() {
               </div>
 
               {/* Rule Engine Findings */}
-              <div className="overflow-hidden rounded-xl border border-primary/20 dark:border-neutral-800 bg-card shadow-sm">
+              <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between bg-primary/5/50 dark:bg-white/5 px-4 py-3 text-left text-sm font-bold text-primary dark:text-primary transition-colors hover:bg-primary/5 dark:hover:bg-white/10"
@@ -505,7 +505,7 @@ export default function InsurerDashboard() {
               </div>
 
               {/* Audit Trail */}
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-4">
+              <div className="rounded-xl border bg-neutral-50 dark:bg-white/5 p-4">
                 <p className="mb-4 text-sm font-bold uppercase tracking-tight text-foreground">Chain of Custody Audit Trail</p>
                 {verificationResult.auditTrail.length === 0 ? (
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">No audit trail data available.</p>
@@ -513,7 +513,7 @@ export default function InsurerDashboard() {
                   <div className="space-y-3">
                     {episodeRecords.length > 1
                       ? episodeRecords.flatMap(rec => rec.auditTrail).map((entry, idx) => (
-                          <div key={`${entry.id}-${idx}`} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-card p-4 shadow-sm">
+                          <div key={`${entry.id}-${idx}`} className="rounded-xl border bg-card p-4 shadow-sm">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
                                 <p className="text-sm font-bold text-foreground">#{entry.recordId} · {entry.filename}</p>
@@ -531,7 +531,7 @@ export default function InsurerDashboard() {
                           </div>
                         ))
                       : verificationResult.auditTrail.map((entry) => (
-                          <div key={entry.id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-card p-4 shadow-sm">
+                          <div key={entry.id} className="rounded-xl border bg-card p-4 shadow-sm">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div>
                                 <p className="text-sm font-semibold text-foreground">#{entry.recordId} · {entry.filename}</p>
@@ -567,7 +567,7 @@ export default function InsurerDashboard() {
   };
 
   const renderClaimHistory = () => (
-    <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+    <section className="rounded-2xl border bg-card p-5 shadow-sm">
       <h2 className="mb-2 text-base font-semibold text-foreground">Claim History</h2>
       <p className="text-sm text-neutral-500 dark:text-neutral-400">Session-level verification results are shown in the Verify Claims tab.</p>
     </section>

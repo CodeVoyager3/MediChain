@@ -357,7 +357,7 @@ export default function PatientDashboard() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground">Record Activity</h2>
             <Activity className="h-4 w-4 text-primary" />
@@ -367,7 +367,7 @@ export default function PatientDashboard() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground">Recent Activity</h2>
             <Clock3 className="h-4 w-4 text-neutral-400" />
@@ -380,11 +380,11 @@ export default function PatientDashboard() {
                 <button
                   key={record.recordId || record.id}
                   type="button"
-                  className="flex w-full items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-left transition-all hover:border-primary/40 dark:hover:border-primary/30"
+                  className="flex w-full items-center justify-between rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-3 text-left transition-all hover:border-primary/40 dark:hover:border-primary/30"
                   onClick={() => openIpfs(record.ipfsCid)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-white dark:bg-card p-2 shadow-sm">
+                    <div className="rounded-lg border bg-white dark:bg-card p-2 shadow-sm">
                       <FileText className="h-4 w-4 text-primary dark:text-primary" />
                     </div>
                     <div>
@@ -400,7 +400,7 @@ export default function PatientDashboard() {
         </section>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+      <div className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-foreground">Clinic Direct-Connect</h2>
           <Link2 className="h-4 w-4 text-neutral-400" />
@@ -424,12 +424,12 @@ export default function PatientDashboard() {
           <div className="grid gap-4 md:grid-cols-[1fr_200px]">
             <div className="flex gap-2">
               <Input
-                className="h-11 rounded-xl border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5"
+                className="h-11 rounded-xl border bg-neutral-50 dark:bg-white/5"
                 placeholder="Enter doctor/clinic wallet address..."
                 value={doctorInput}
                 onChange={(event) => setDoctorInput(event.target.value)}
               />
-              <Button type="button" variant="outline" className="border-neutral-200 dark:border-neutral-800 text-foreground h-auto" onClick={() => setScanMode('checkin')}>
+              <Button type="button" variant="outline" className="border text-foreground h-auto" onClick={() => setScanMode('checkin')}>
                 <ScanLine className="h-5 w-5" />
               </Button>
             </div>
@@ -447,7 +447,7 @@ export default function PatientDashboard() {
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">My Records</h2>
         <select
-          className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-card px-2 py-1 text-sm text-foreground outline-none"
+          className="rounded-md border bg-card px-2 py-1 text-sm text-foreground outline-none"
           value={recordSort}
           onChange={(event) => setRecordSort(event.target.value)}
         >
@@ -463,7 +463,7 @@ export default function PatientDashboard() {
           {sortedRecords.map((record) => (
             <div
               key={record.recordId || record.id}
-              className={`rounded-xl border border-neutral-200 bg-card p-4 ${record.superseded ? 'opacity-60' : ''}`}
+              className={`rounded-xl border bg-card p-4 ${record.superseded ? 'opacity-60' : ''}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -501,9 +501,9 @@ export default function PatientDashboard() {
       ) : (
         <>
           {episodeCards.length > 0 ? <WigglingCards cards={episodeCards} /> : null}
-          <Accordion type="multiple" className="rounded-xl border border-neutral-200 bg-card p-4">
+          <Accordion type="multiple" className="rounded-xl border bg-card p-4">
           {episodes.map((episode) => (
-            <AccordionItem key={episode.id} value={String(episode.id)} className="border-b border-neutral-200">
+            <AccordionItem key={episode.id} value={String(episode.id)} className="border-b">
               <AccordionTrigger className="py-3 text-foreground hover:no-underline">
                 <div className="flex w-full items-center justify-between pr-4">
                   <div className="border-l-4 border-violet-500 pl-3 text-left">
@@ -540,7 +540,7 @@ export default function PatientDashboard() {
               <AccordionContent>
                 <div className="space-y-2 pb-3">
                   {episode.records.map((record) => (
-                    <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                    <div key={record.recordId || record.id} className="rounded-md border bg-neutral-50 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
@@ -561,7 +561,7 @@ export default function PatientDashboard() {
         </>
       )}
 
-      <Accordion type="single" collapsible className="rounded-xl border border-neutral-200 bg-card p-4">
+      <Accordion type="single" collapsible className="rounded-xl border bg-card p-4">
         <AccordionItem value="ungrouped" className="border-b-0">
           <AccordionTrigger className="text-foreground hover:no-underline">Ungrouped Records</AccordionTrigger>
           <AccordionContent>
@@ -570,7 +570,7 @@ export default function PatientDashboard() {
             ) : (
               <div className="space-y-2">
                 {ungroupedRecords.map((record) => (
-                  <div key={record.recordId || record.id} className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                  <div key={record.recordId || record.id} className="rounded-md border bg-neutral-50 p-3">
                     <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
                     <p className="text-xs text-neutral-500">{record.recordType}</p>
                   </div>
@@ -586,7 +586,7 @@ export default function PatientDashboard() {
   const renderAccessControl = () => (
     <div className="grid gap-4 lg:grid-cols-2">
 
-      <section className="rounded-xl border border-neutral-200 bg-card p-4">
+      <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 text-base font-semibold text-foreground">Live Permissions</h2>
         {grants.length === 0 ? (
           <EmptyState icon={ShieldCheck} title="No live permissions" description="Grant access to a doctor from the right panel." />
@@ -595,7 +595,7 @@ export default function PatientDashboard() {
             {grants.map((grant) => {
               const warning = grant.expiresAt ? new Date(grant.expiresAt).getTime() - Date.now() < 60 * 60 * 1000 : false;
               return (
-                <div key={grant.id} className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-3">
+                <div key={grant.id} className="rounded-md border bg-neutral-50 dark:bg-white/5 p-3">
                   <p className="text-sm font-semibold text-foreground">
                     <WalletAddress address={grant.doctorAddress || grant.viewerAddress} className="text-foreground" />
                   </p>
@@ -605,7 +605,7 @@ export default function PatientDashboard() {
                       const rec = records.find((r) => String(r.recordId) === String(id));
                       const label = rec ? (rec.filename || rec.recordType) : `Record #${id}`;
                       return (
-                        <span key={id} className="inline-flex items-center rounded-md bg-neutral-200/50 px-2 py-0.5 text-[10px] font-medium text-neutral-700 border border-neutral-300">
+                        <span key={id} className="inline-flex items-center rounded-md bg-neutral-200/50 px-2 py-0.5 text-[10px] font-medium text-neutral-700 border">
                           #{id} {label}
                         </span>
                       );
@@ -622,22 +622,22 @@ export default function PatientDashboard() {
         )}
       </section>
 
-      <section className="rounded-xl border border-neutral-200 bg-card p-4">
+      <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 text-base font-semibold text-foreground">Grant New Access</h2>
         <div className="space-y-3">
           <div className="flex gap-2">
             <Input
-              className="border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 text-foreground"
+              className="border bg-neutral-50 dark:bg-white/5 text-foreground"
               placeholder="Doctor wallet address"
               value={grantDoctorInput}
               onChange={(event) => setGrantDoctorInput(event.target.value)}
             />
-            <Button type="button" variant="outline" className="border-neutral-200 dark:border-neutral-800 text-foreground dark:hover:bg-white/5" onClick={() => setScanMode('grant')}>
+            <Button type="button" variant="outline" className="border text-foreground dark:hover:bg-white/5" onClick={() => setScanMode('grant')}>
               <ScanLine className="h-4 w-4" />
             </Button>
           </div>
 
-          <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-2">
+          <div className="rounded-md border bg-neutral-50 dark:bg-white/5 p-2">
             <p className="mb-2 text-xs text-neutral-500">Select records</p>
             <div className="max-h-40 space-y-1 overflow-auto">
               {records.map((record) => {
@@ -663,7 +663,7 @@ export default function PatientDashboard() {
           </div>
 
           <select
-            className="w-full rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground outline-none"
+            className="w-full rounded-md border bg-neutral-50 dark:bg-white/5 px-3 py-2 text-sm text-foreground outline-none"
             value={isCustomDuration ? 'custom' : selectedDuration}
             onChange={(event) => {
               const val = event.target.value;
@@ -686,7 +686,7 @@ export default function PatientDashboard() {
             <div className="flex items-center gap-2">
               <Input
                 type="number"
-                className="border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 text-foreground"
+                className="border bg-neutral-50 dark:bg-white/5 text-foreground"
                 placeholder="Duration in hours"
                 value={customHours}
                 onChange={(event) => setCustomHours(event.target.value)}
@@ -705,7 +705,7 @@ export default function PatientDashboard() {
   );
 
   const renderAppointments = () => (
-    <div className="rounded-xl border border-neutral-200 bg-card p-4">
+    <div className="rounded-xl border bg-card p-4">
       <h2 className="mb-3 text-base font-semibold text-foreground">Appointments & Clinic Access</h2>
       {activeCheckIn ? (
         <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
@@ -795,7 +795,7 @@ export default function PatientDashboard() {
       />
 
       <Dialog open={Boolean(grantEpisodeTarget)} onOpenChange={(open) => !open && setGrantEpisodeTarget(null)}>
-        <DialogContent className="border-neutral-200">
+        <DialogContent className="border">
           <DialogHeader>
             <DialogTitle>Grant Episode Access</DialogTitle>
             <DialogDescription>
@@ -805,12 +805,12 @@ export default function PatientDashboard() {
           <div className="space-y-4">
             <div className="flex gap-2">
               <Input
-                className="border-neutral-200 bg-neutral-50"
+                className="border bg-neutral-50"
                 placeholder="Doctor or Insurer wallet address"
                 value={grantEpisodeWallet}
                 onChange={(e) => setGrantEpisodeWallet(e.target.value)}
               />
-              <Button variant="outline" className="border-neutral-200 text-foreground" onClick={() => setScanMode('grant-episode')}>
+              <Button variant="outline" className="border text-foreground" onClick={() => setScanMode('grant-episode')}>
                 <ScanLine className="h-4 w-4" />
               </Button>
             </div>

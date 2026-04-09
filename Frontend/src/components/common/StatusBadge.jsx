@@ -5,8 +5,8 @@ const STATUS_STYLES = {
   verified: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   superseded: 'bg-amber-50 text-amber-700 border-amber-200',
   latest: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  pending: 'bg-neutral-100 text-neutral-600 border-neutral-200',
-  waiting: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+  pending: 'bg-neutral-100 text-neutral-600 border',
+  waiting: 'bg-neutral-100 text-neutral-600 border',
 };
 
 export default function StatusBadge({ status = 'pending', className }) {

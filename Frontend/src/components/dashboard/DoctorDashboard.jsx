@@ -280,7 +280,7 @@ export default function DoctorDashboard() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Clock3 className="h-4 w-4 text-primary" />
             <h2 className="text-base font-bold text-foreground">Waiting Room Snapshot</h2>
@@ -294,7 +294,7 @@ export default function DoctorDashboard() {
           ) : (
             <div className="space-y-2">
               {waitingRoom.slice(0, 3).map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-3 py-2">
+                <div key={entry.id} className="flex items-center justify-between rounded-xl border bg-neutral-50 dark:bg-white/5 px-3 py-2">
                   <div>
                     <p className="text-sm font-semibold text-foreground">
                       <WalletAddress address={entry.patientAddress || entry.patient_address} className="text-foreground" />
@@ -310,7 +310,7 @@ export default function DoctorDashboard() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+        <section className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Stethoscope className="h-4 w-4 text-primary" />
             <h2 className="text-base font-bold text-foreground">Active Patient Context</h2>
@@ -324,11 +324,11 @@ export default function DoctorDashboard() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="rounded-lg bg-muted/40 p-2">
+                <div className="rounded-lg border bg-muted/40 p-2">
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Records</p>
                   <p className="text-lg font-bold text-foreground">{accessibleRecords.length}</p>
                 </div>
-                <div className="rounded-lg bg-muted/40 p-2">
+                <div className="rounded-lg border bg-muted/40 p-2">
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">Episodes</p>
                   <p className="text-lg font-bold text-foreground">{doctorEpisodes.length}</p>
                 </div>
@@ -347,7 +347,7 @@ export default function DoctorDashboard() {
 
   /* ─── Waiting Room ─── */
   const renderWaitingRoom = () => (
-    <div className="space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+    <div className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
           Waiting Room
@@ -416,7 +416,7 @@ export default function DoctorDashboard() {
   const renderVaultSearch = () => (
     <div className="flex flex-wrap gap-2">
       <input
-        className="w-full flex-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none transition-all focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+        className="w-full flex-1 rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none transition-all focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
         placeholder="0x... patient wallet address"
         value={patientQuery}
         onChange={(event) => setPatientQuery(event.target.value)}
@@ -424,7 +424,7 @@ export default function DoctorDashboard() {
           if (event.key === 'Enter') loadPatientVault(patientQuery);
         }}
       />
-      <Button type="button" variant="outline" className="border-neutral-200 dark:border-neutral-800 text-foreground" onClick={() => setScannerOpen(true)}>
+      <Button type="button" variant="outline" className="border text-foreground" onClick={() => setScannerOpen(true)}>
         <ScanLine className="h-4 w-4" />
       </Button>
  <Button className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90" onClick={() => loadPatientVault(patientQuery)}>
@@ -434,7 +434,7 @@ export default function DoctorDashboard() {
   );
 
   const renderMintEngine = () => (
-    <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+    <section className="rounded-2xl border bg-card p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
         <FileUp className="h-5 w-5 text-primary" />
         <h3 className="text-base font-bold text-foreground">Secure Minting Engine</h3>
@@ -454,14 +454,14 @@ export default function DoctorDashboard() {
 
         {!selectedPatient ? (
           <input
-            className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none"
+            className="w-full rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none"
             placeholder="0x... patient wallet"
             value={mintPatient}
             onChange={(event) => setMintPatient(event.target.value)}
           />
         ) : null}
 
-        <div className="rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-3">
+        <div className="rounded-xl border border-dashed bg-neutral-50 dark:bg-white/5 p-3">
           <p className="mb-2 text-xs text-neutral-500 dark:text-neutral-400">Upload PDF Document</p>
           <input
             type="file"
@@ -474,7 +474,7 @@ export default function DoctorDashboard() {
         <select
           value={recordType}
           onChange={(event) => setRecordType(event.target.value)}
-          className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none"
+          className="w-full rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none"
         >
           {RECORD_TYPES.map((type) => (
             <option key={type} value={type} className="bg-card text-foreground dark:bg-neutral-900">{type}</option>
@@ -485,7 +485,7 @@ export default function DoctorDashboard() {
           <select
             value={selectedEpisodeId}
             onChange={(event) => setSelectedEpisodeId(event.target.value)}
-            className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none"
+            className="w-full rounded-xl border bg-neutral-50 dark:bg-white/5 px-4 py-2.5 text-sm text-foreground outline-none"
           >
             <option value="" className="bg-card text-foreground dark:bg-neutral-900">No Episode (Standalone Record)</option>
             {doctorEpisodes.map((episode) => (
@@ -519,7 +519,7 @@ export default function DoctorDashboard() {
 
   const renderPatientVault = () => (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground">Patient Vault</h2>
           {selectedPatient && (
@@ -559,7 +559,7 @@ export default function DoctorDashboard() {
               ) : (
                 <div className="space-y-2">
                   {grantedRecords.map((record) => (
-                    <div key={record.recordId || record.id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-card p-3">
+                    <div key={record.recordId || record.id} className="rounded-xl border bg-card p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
@@ -577,14 +577,14 @@ export default function DoctorDashboard() {
             </div>
 
             {/* Authored Records */}
-            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-card p-4">
+            <div className="rounded-xl border bg-card p-4">
               <p className="mb-3 text-sm font-bold text-foreground">Past Authored Records (Amend Only)</p>
               {authoredRecords.length === 0 ? (
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">No authored records found.</p>
               ) : (
                 <div className="space-y-2">
                   {authoredRecords.map((record) => (
-                    <div key={record.recordId || record.id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-3">
+                    <div key={record.recordId || record.id} className="rounded-xl border bg-neutral-50 dark:bg-white/5 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="text-sm font-semibold text-foreground">#{record.recordId || record.id}</p>
@@ -620,7 +620,7 @@ export default function DoctorDashboard() {
                             >
                               Confirm Amend
                             </Button>
-                            <Button variant="outline" className="border-neutral-200 dark:border-neutral-800 text-foreground" onClick={() => setAmendingId(null)}>
+                            <Button variant="outline" className="border text-foreground" onClick={() => setAmendingId(null)}>
                               Cancel
                             </Button>
                           </div>
@@ -641,7 +641,7 @@ export default function DoctorDashboard() {
 
   /* ─── Episodes ─── */
   const renderEpisodes = () => (
-    <section className="space-y-4 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-card p-5 shadow-sm">
+    <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">My Episodes</h2>
@@ -669,7 +669,7 @@ export default function DoctorDashboard() {
       ) : (
         <div className="space-y-2">
           {doctorEpisodes.map((episode) => (
-            <div key={episode.id} className="flex items-start justify-between rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5 p-4 transition-all hover:border-violet-200 dark:hover:border-violet-500/30">
+            <div key={episode.id} className="flex items-start justify-between rounded-xl border bg-neutral-50 dark:bg-white/5 p-4 transition-all hover:border-violet-200 dark:hover:border-violet-500/30">
               <div className="border-l-4 border-violet-500 pl-3">
                 <p className="text-sm font-semibold text-foreground">#{episode.id} · {episode.title}</p>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">{episode.records.length} records · {formatDate(episode.createdAt)}</p>
@@ -717,7 +717,7 @@ export default function DoctorDashboard() {
 
       {/* Create Episode Modal */}
       <Dialog open={episodeModalOpen} onOpenChange={setEpisodeModalOpen}>
-        <DialogContent className="border-neutral-200 dark:border-neutral-800 sm:max-w-md">
+        <DialogContent className="border sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
@@ -739,14 +739,14 @@ export default function DoctorDashboard() {
                 placeholder="e.g., Knee Surgery April 2026"
                 value={episodeTitle}
                 onChange={(e) => setEpisodeTitle(e.target.value)}
-                className="border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-white/5"
+                className="border bg-neutral-50 dark:bg-white/5"
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateEpisode()}
               />
             </div>
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
-                className="flex-1 border-neutral-200 dark:border-neutral-800"
+                className="flex-1 border"
                 onClick={() => setEpisodeModalOpen(false)}
               >
                 Cancel
