@@ -67,13 +67,24 @@ public class GeminiAnalysisService {
 			String llmOutput = (String) resParts.get(0).get("text");
 
 			// Clean up potential markdown formatting block
-			llmOutput = llmOutput.replaceAll("```json", "").replaceAll("```", "").trim();
-
-			return objectMapper.readValue(llmOutput, Map.class);
+			String cleanedOutput = llmOutput.replaceAll("(?s)^.*?(\\{.*\\}).*?$", "$1").trim();
+			
+			try {
+				return objectMapper.readValue(cleanedOutput, Map.class);
+			} catch (Exception parseEx) {
+				log.error("Failed to parse Gemini JSON. Raw output: {}", llmOutput);
+				throw parseEx;
+			}
 
 		} catch (Exception e) {
-			log.error("Gemini LLM Call failed", e);
-			return Map.of("additional_anomalies", List.of(), "risk_level", "UNKNOWN", "confidence", 0, "reasoning", "LLM Analysis failed.", "recommendation", "REVIEW");
+			log.error("Gemini LLM Call failed. Type: {}, Message: {}", e.getClass().getSimpleName(), e.getMessage());
+			return Map.of(
+					"additional_anomalies", List.of(),
+					"risk_level", "HIGH", // Default to HIGH if we can't get a real answer, for safety
+					"confidence", 0,
+					"reasoning", "AI Engine Error: " + e.getMessage(), 
+					"recommendation", "REVIEW"
+			);
 		}
 	}
 }
