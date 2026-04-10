@@ -36,7 +36,12 @@ public class GeminiAnalysisService {
 
 			String prompt = "You are a medical insurance fraud detection AI.\n" +
 					"Analyze the following Episode of Care for logical inconsistencies, " +
-					"impossible sequences, or suspicious patterns.\n\n" +
+					"impossible sequences (e.g., Surgery before Diagnosis), or suspicious patterns.\n\n" +
+					"CRITICAL CONTEXT:\n" +
+					"1. VERSIONING: 'is_superseded: true' means the record is a historical prior version that was replaced. " +
+					"It is NORMAL and expected for these records to exist chronologically before the latest version.\n" +
+					"2. DATA NOISE: If a field like 'amount' is 'null', ignore it. Only analyze patterns in the fields that are present.\n" +
+					"3. FOCUS: Look for impossible clinical sequences (like Final Bill before Diagnosis) across different record types.\n\n" +
 					"Episode Data (JSON): " + objectMapper.writeValueAsString(episodeJson) + "\n\n" +
 					"Rule Engine Pre-Findings: " + objectMapper.writeValueAsString(ruleFindings) + "\n\n" +
 					"Respond ONLY in this exact JSON format, no preamble:\n" +
