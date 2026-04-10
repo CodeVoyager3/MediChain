@@ -388,7 +388,7 @@ export default function PatientDashboard() {
                       <FileText className="h-4 w-4 text-primary dark:text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-foreground line-clamp-1">{record.filename || record.recordType}</p>
+                      <p className="text-sm font-bold text-foreground line-clamp-1">#{record.recordId} · {record.filename || record.recordType}</p>
                       <p className="text-[10px] uppercase tracking-wider text-neutral-500">{record.recordType} · {formatDate(record.timestamp)}</p>
                     </div>
                   </div>
@@ -543,7 +543,7 @@ export default function PatientDashboard() {
                     <div key={record.recordId || record.id} className="rounded-md border bg-neutral-50 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
+                          <p className="text-sm font-semibold text-foreground">#{record.recordId} · {record.filename || record.recordType}</p>
                           <p className="text-xs text-neutral-500">{formatDate(record.timestamp)}</p>
                         </div>
  <Button size="sm" className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90" onClick={() => openIpfs(record.ipfsCid)}>
@@ -571,7 +571,7 @@ export default function PatientDashboard() {
               <div className="space-y-2">
                 {ungroupedRecords.map((record) => (
                   <div key={record.recordId || record.id} className="rounded-md border bg-neutral-50 p-3">
-                    <p className="text-sm font-semibold text-foreground">{record.filename || record.recordType}</p>
+                    <p className="text-sm font-semibold text-foreground">#{record.recordId} · {record.filename || record.recordType}</p>
                     <p className="text-xs text-neutral-500">{record.recordType}</p>
                   </div>
                 ))}
