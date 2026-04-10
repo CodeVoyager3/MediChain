@@ -512,8 +512,12 @@ export default function InsurerDashboard() {
                 ) : (
                   <div className="space-y-3">
                     {episodeRecords.length > 1
-                      ? episodeRecords.flatMap(rec => rec.auditTrail).map((entry, idx) => (
-                          <div key={`${entry.id}-${idx}`} className="rounded-xl border bg-card p-4 shadow-sm">
+                      ? (() => {
+                          const allEntries = episodeRecords.flatMap(rec => rec.auditTrail || []);
+                          const uniqueEntries = Array.from(new Map(allEntries.map(e => [e.recordId, e])).values());
+                          // Sort by recordId descending to show latest first
+                          return uniqueEntries.sort((a, b) => (b.recordId || 0) - (a.recordId || 0)).map((entry, idx) => (
+                          <div key={`${entry.recordId}-${idx}`} className="rounded-xl border bg-card p-4 shadow-sm">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                               <div>
                                 <p className="text-sm font-bold text-foreground">#{entry.recordId} · {entry.filename}</p>
